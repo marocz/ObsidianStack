@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package obsidian.v1;
+
+option go_package = "github.com/obsidianstack/obsidianstack/gen/obsidian/v1;obsidianv1";
+
+// PipelineSnapshot is the core unit of data shipped from agent to server.
+// One snapshot is produced per configured source per scrape cycle.
+message PipelineSnapshot {
+  string source_id           = 1;  // unique identifier for the pipeline source
+  string source_type         = 2;  // "otelcol" | "prometheus" | "loki" | "jaeger" | "http"
+  string node_type           = 3;  // "k8s" | "vm" | "ext"
+  string cluster             = 4;  // cluster name or hostname
+  string namespace           = 5;  // kubernetes namespace, empty for non-k8s
+  int64  timestamp_unix      = 6;  // unix epoch seconds when snapshot was taken
+  string state               = 7;  // "healthy" | "degraded" | "critical" | "unknown"
+  double drop_pct            = 8;  // percentage of data dropped (0-100)
+  double recovery_rate       = 9;  // percentage of dropped data that recovered (0-100)
+  double throughput_per_min  = 10; // events/samples/lines per minute
+  double latency_p50_ms      = 11; // P50 export latency in milliseconds
+  double latency_p95_ms      = 12; // P95 export latency in milliseconds
+  double latency_p99_ms      = 13; // P99 export latency in milliseconds
+  double strength_score      = 14; // composite health score 0-100
+  double uptime_pct          = 15; // uptime percentage since last restart (0-100)
+  repeated SignalStats signals = 16; // per-signal-type breakdown
+  repeated CertStatus  certs   = 17; // TLS cert status per endpoint
+  string error_message       = 18; // non-empty if the scrape itself failed
+}
+
+// SignalStats holds per-signal-type (metrics/logs/traces) throughput and drop data.
+message SignalStats {
+  string type        = 1; // "metrics" | "logs" | "traces"
+  double received_pm = 2; // items received per minute
+  double dropped_pm  = 3; // items dropped per minute
+  double drop_pct    = 4; // dropped_pm / received_pm * 100
+}
+
+// CertStatus describes the TLS certificate and auth state for one endpoint.
+message CertStatus {
+  string endpoint  = 1; // full URL or host:port
+  string auth_type = 2; // "mtls" | "apikey" | "bearer" | "none"
+  string status    = 3; // "valid" | "expiring" | "expired" | "unreachable"
+  int32  days_left = 4; // days until NotAfter; 0 if unreachable/expired
+  string issuer    = 5; // certificate issuer CN
+  string not_after = 6; // RFC3339 expiry timestamp
+}
+
+// SnapshotService is the gRPC service exposed by obsidianstack-server.
+service SnapshotService {
+  // SendSnapshot delivers a single pipeline snapshot from agent to server.
+  // Using unary RPC so each snapshot can be individually buffered and retried.
+  rpc SendSnapshot(PipelineSnapshot) returns (SendResponse);
+}
+
+// SendResponse is returned by the server after receiving a snapshot batch.
+message SendResponse {
+  bool   ok      = 1; // true if all snapshots were accepted
+  string message = 2; // error detail if ok is false
+}
