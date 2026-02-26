@@ -1,0 +1,96 @@
+# ObsidianStack configuration example
+# Copy to config.yaml and adjust to your environment.
+# The agent watches this file and reloads on change (no restart needed).
+
+agent:
+  # Address of the obsidianstack-server gRPC endpoint
+  server_endpoint: "obsidianstack-server:50051"
+
+  # Authentication for the gRPC connection to obsidianstack-server.
+  # Mirrors the source auth schema — same modes: mtls | apikey | none.
+  server_auth:
+    mode: none           # none for local dev; mtls or apikey for production
+
+  # How often to scrape each source (Go duration string)
+  scrape_interval: 30s
+
+  # How often to ship accumulated snapshots to the server
+  ship_interval: 15s
+
+  # Max snapshots to buffer in memory when server is unreachable
+  buffer_size: 1000
+
+  sources:
+    # OTel Collector with mTLS auth
+    - id: "otel-col-prod"
+      type: otelcol
+      endpoint: "http://otelcol.monitoring.svc.cluster.local:8888/metrics"
+      auth:
+        mode: mtls                        # mtls | apikey | bearer | none
+        cert_file: /etc/certs/client.crt  # path to client certificate
+        key_file: /etc/certs/client.key   # path to client private key
+        ca_file: /etc/certs/ca.crt        # path to CA certificate
+
+    # Prometheus with API key auth
+    - id: "prometheus-ha"
+      type: prometheus
+      endpoint: "http://prometheus.monitoring.svc.cluster.local:9090/metrics"
+      auth:
+        mode: apikey
+        header: "X-API-Key"  # HTTP header to send the key in
+        key_env: PROM_API_KEY # env var containing the key value
+
+    # Loki with bearer token auth
+    - id: "loki-stg"
+      type: loki
+      endpoint: "http://loki.staging.svc.cluster.local:3100/metrics"
+      auth:
+        mode: bearer
+        token_env: LOKI_TOKEN # env var containing the token
+
+    # External HTTP endpoint (e.g., Grafana SaaS health check)
+    - id: "ext-grafana"
+      type: http
+      endpoint: "https://grafana.example.com/api/health"
+      auth:
+        mode: apikey
+        header: "Authorization"
+        key_env: GRAFANA_API_KEY
+      tls:
+        insecure_skip_verify: false # set true only for internal CAs in dev
+
+server:
+  # gRPC port — agents connect here
+  grpc_port: 50051
+
+  # HTTP port — REST API and WebSocket
+  http_port: 8080
+
+  auth:
+    # Authentication mode for the REST API
+    mode: apikey          # apikey | mtls | none
+    key_env: OBSIDIAN_SERVER_KEY # env var containing the expected API key
+
+  alerts:
+    rules:
+      - name: "high-drop-rate"
+        condition: "drop_pct > 10"   # field operator value
+        severity: critical
+        cooldown: 15m                 # suppress re-fires for this duration
+
+      - name: "cert-expiring"
+        condition: "cert_days_left < 14"
+        severity: warning
+        cooldown: 24h
+
+    webhooks:
+      - type: teams               # teams | slack | pagerduty | http
+        url_env: TEAMS_WEBHOOK_URL
+
+      - type: slack
+        url_env: SLACK_WEBHOOK_URL
+
+  storage:
+    backend: sqlite               # sqlite (Phase 8)
+    path: /data/obsidianstack.db  # SQLite database path
+    retention: 7d                 # how long to keep historical snapshots

@@ -1,0 +1,11 @@
+version: v2
+modules:
+  - path: proto
+lint:
+  use:
+    - STANDARD
+  except:
+    - FIELD_LOWER_SNAKE_CASE  # proto fields already follow convention
+breaking:
+  use:
+    - FILE
