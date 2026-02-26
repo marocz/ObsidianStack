@@ -1,0 +1,44 @@
+# Claude Code project management files (not for public repo)
+ARCHITECTURE.md
+CLAUDE_CODE_GUIDE.md
+PROJECT_STATUS.json
+.claude/
+
+# Compiled binaries
+bin/
+dist/
+
+# Go build cache
+*.test
+*.out
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+config.yaml
+!config.example.yaml
+
+# Node / UI
+ui/node_modules/
+ui/dist/
+ui/.vite/
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
+# Test coverage
+coverage.out
+coverage.html
