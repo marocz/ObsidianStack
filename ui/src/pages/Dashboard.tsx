@@ -5,7 +5,7 @@ import { usePipelines } from '../hooks/usePipelines'
 import { useSignals } from '../hooks/useSignals'
 import { useCerts } from '../hooks/useCerts'
 import { useAlerts } from '../hooks/useAlerts'
-import type { PipelineResponse, CertEntry, SignalAggregate } from '../api/types'
+import type { PipelineResponse, CertEntry, SignalAggregate, AlertEntry } from '../api/types'
 
 // ─── Mini donut chart ─────────────────────────────────────────────────────────
 
@@ -303,6 +303,43 @@ function CertRow({ cert }: { cert: CertEntry }) {
   )
 }
 
+// ─── Alert row ────────────────────────────────────────────────────────────────
+
+function AlertRow({ alert: a }: { alert: AlertEntry }) {
+  const sevColor: Record<string, string> = {
+    critical: '#ff4f6a',
+    warning:  '#ffab40',
+    info:     '#00d4ff',
+  }
+  const color = sevColor[a.severity] ?? '#6b8ba8'
+  return (
+    <div
+      className="flex items-start gap-2.5 rounded px-2.5 py-2 text-[11px]"
+      style={{
+        background: a.state === 'firing' ? `${color}08` : 'rgba(74,96,128,0.06)',
+        border: `1px solid ${a.state === 'firing' ? color + '25' : 'rgba(74,96,128,0.2)'}`,
+      }}
+    >
+      <span
+        className="h-1.5 w-1.5 rounded-full mt-1 flex-shrink-0"
+        style={{ background: a.state === 'firing' ? color : '#4a6080', boxShadow: a.state === 'firing' ? `0 0 4px ${color}` : 'none' }}
+      />
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold truncate" style={{ color: a.state === 'firing' ? color : '#6b8ba8' }}>
+          {a.rule_name}
+        </p>
+        <p className="text-obs-muted truncate">{a.source_id}</p>
+      </div>
+      <span
+        className="text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0"
+        style={{ background: `${color}15`, color, border: `1px solid ${color}30` }}
+      >
+        {a.state === 'resolved' ? 'OK' : a.severity.toUpperCase()}
+      </span>
+    </div>
+  )
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtRate(n: number): string {
@@ -559,23 +596,23 @@ export default function Dashboard({ onAddSource }: { onAddSource?: () => void })
                 </svg>
                 <span className="font-syne text-[13px] font-bold text-obs-text">Alerts</span>
               </div>
-              {alerts && alerts.length > 0 && (
+              {alerts && alerts.filter(a => a.state === 'firing').length > 0 && (
                 <span
                   className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                   style={{ background: 'rgba(255,79,106,0.08)', border: '1px solid rgba(255,79,106,0.2)', color: '#ff4f6a' }}
                 >
-                  {alerts.length}
+                  {alerts.filter(a => a.state === 'firing').length} firing
                 </span>
               )}
             </div>
-            <div className="p-3">
+            <div className="p-3 space-y-2">
               {!alerts || alerts.length === 0 ? (
                 <div className="text-center py-4">
                   <p className="text-[12px]" style={{ color: '#00e676' }}>All clear</p>
                   <p className="text-[11px] text-obs-muted mt-1">No active alerts</p>
                 </div>
               ) : (
-                <p className="text-[12px] text-obs-muted text-center py-2">{alerts.length} active alerts</p>
+                alerts.slice(0, 5).map((a) => <AlertRow key={a.id} alert={a} />)
               )}
             </div>
           </div>

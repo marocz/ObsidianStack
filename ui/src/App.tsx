@@ -6,6 +6,8 @@ import { useStore } from './store/useStore'
 import { usePipelines } from './hooks/usePipelines'
 import AddSourceModal from './components/AddSourceModal'
 import Dashboard from './pages/Dashboard'
+import Pipelines from './pages/Pipelines'
+import Signals from './pages/Signals'
 import NotFound from './pages/NotFound'
 
 const queryClient = new QueryClient({
@@ -152,8 +154,8 @@ function Sidebar() {
         <p className="text-[10px] font-semibold tracking-[1.5px] uppercase text-obs-muted mb-2">Monitoring</p>
         <nav className="space-y-0.5">
           <NavItem to="/"          icon={<IconOverview />}   label="Overview" />
-          <NavItem to="/pipelines" icon={<IconPipelines />}  label="Pipelines" disabled />
-          <NavItem to="/signals"   icon={<IconSignals />}    label="Signals"   disabled />
+          <NavItem to="/pipelines" icon={<IconPipelines />}  label="Pipelines" />
+          <NavItem to="/signals"   icon={<IconSignals />}    label="Signals" />
         </nav>
       </div>
 
@@ -212,7 +214,7 @@ function Header({ onAddSource }: { onAddSource: () => void }) {
   }, [])
 
   // Derive page title from route
-  const pageTitle: Record<string, string> = { '/': 'Overview', '/pipelines': 'Pipelines', '/signals': 'Signals', '/certs': 'Certificates' }
+  const pageTitle: Record<string, string> = { '/': 'Overview', '/pipelines': 'Pipelines', '/signals': 'Signals', '/certs': 'Certificates', '/alerts': 'Alerts' }
   const title = pageTitle[location.pathname] ?? 'ObsidianStack'
 
   return (
@@ -285,8 +287,10 @@ function AppShell() {
         <Sidebar />
         <main className="flex-1 overflow-y-auto p-6" style={{ background: '#080c10' }}>
           <Routes>
-            <Route path="/" element={<Dashboard onAddSource={() => setShowAddSource(true)} />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/"          element={<Dashboard onAddSource={() => setShowAddSource(true)} />} />
+            <Route path="/pipelines" element={<Pipelines />} />
+            <Route path="/signals"   element={<Signals />} />
+            <Route path="*"          element={<NotFound />} />
           </Routes>
         </main>
       </div>

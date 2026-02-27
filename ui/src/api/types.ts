@@ -61,6 +61,18 @@ export interface CertEntry {
   not_after?: string
 }
 
+export interface AlertEntry {
+  id: string
+  rule_name: string
+  source_id: string
+  severity: 'critical' | 'warning' | 'info'
+  message: string
+  value: number
+  fired_at: string
+  resolved_at?: string
+  state: 'firing' | 'resolved'
+}
+
 export interface SnapshotResponse {
   pipelines: PipelineResponse[]
   generated_at: string
