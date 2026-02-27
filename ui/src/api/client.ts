@@ -1,4 +1,5 @@
 import type {
+  AlertEntry,
   CertEntry,
   HealthResponse,
   PipelineResponse,
@@ -21,7 +22,7 @@ export const api = {
   pipelines: () => get<PipelineResponse[]>('/pipelines'),
   pipeline: (id: string) => get<PipelineResponse>(`/pipelines/${encodeURIComponent(id)}`),
   signals: () => get<SignalsResponse>('/signals'),
-  alerts: () => get<unknown[]>('/alerts'),
+  alerts: () => get<AlertEntry[]>('/alerts'),
   certs: () => get<CertEntry[]>('/certs'),
   snapshot: () => get<SnapshotResponse>('/snapshot'),
 }

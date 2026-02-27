@@ -1,0 +1,25 @@
+agent:
+  server_endpoint: "localhost:50051"   # or the server's IP/hostname if on a separate host
+  server_auth:
+    mode: none
+
+  scrape_interval: 15s
+  ship_interval: 15s
+  buffer_size: 1000
+
+  sources:
+    - id: "prometheus-prod"
+      type: prometheus
+      endpoint: "https://prom-staging.vechtron.com/metrics"
+      auth:
+        mode: basic
+        username: "admin"
+        password_env: PROM_PASSWORD     # resolved from /etc/obsidianstack/agent.env
+      tls:
+        insecure_skip_verify: true
+
+    - id: "loki-prod"
+      type: loki
+      endpoint: "http://loki.internal:3100/metrics"
+      auth:
+        mode: none

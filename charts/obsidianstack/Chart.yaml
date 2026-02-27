@@ -1,0 +1,18 @@
+apiVersion: v2
+name: obsidianstack
+description: >
+  ObsidianStack — observability pipeline health monitor.
+  Deploys the agent (scrapes Prometheus/Loki/OTel, ships snapshots via gRPC)
+  and the server (evaluates alerts, serves the REST+WebSocket API).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - observability
+  - monitoring
+  - prometheus
+  - loki
+  - opentelemetry
+home: https://github.com/obsidianstack/obsidianstack
+maintainers:
+  - name: ObsidianStack

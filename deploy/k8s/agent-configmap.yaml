@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: obsidianstack-agent-config
+  namespace: obsidianstack
+data:
+  agent.yaml: |
+    agent:
+      # Points to the server Service within the cluster
+      server_endpoint: "obsidianstack-server:50051"
+      server_auth:
+        mode: none
+
+      scrape_interval: 15s
+      ship_interval: 15s
+      buffer_size: 1000
+
+      sources:
+        # In-cluster Prometheus (no auth needed from inside the cluster)
+        - id: "prometheus-k8s"
+          type: prometheus
+          endpoint: "http://prometheus-server.monitoring.svc.cluster.local:9090/metrics"
+          auth:
+            mode: none
+
+        # In-cluster Loki
+        - id: "loki-k8s"
+          type: loki
+          endpoint: "http://loki.loki.svc.cluster.local:3100/metrics"
+          auth:
+            mode: none
+
+        # External / staging Prometheus with basic auth
+        # Password comes from the obsidianstack-secrets Secret (PROM_PASSWORD key)
+        - id: "prometheus-prod"
+          type: prometheus
+          endpoint: "https://prom-staging.vechtron.com/metrics"
+          auth:
+            mode: basic
+            username: "admin"
+            password_env: PROM_PASSWORD      # injected from Secret
+          tls:
+            insecure_skip_verify: true

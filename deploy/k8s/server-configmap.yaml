@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: obsidianstack-server-config
+  namespace: obsidianstack
+data:
+  server.yaml: |
+    server:
+      grpc_port: 50051
+      http_port: 8080
+
+      auth:
+        mode: none
+
+      snapshot:
+        ttl: 5m
+
+      alerts:
+        rules:
+          - name: "high-drop-rate"
+            condition: "drop_pct > 10"
+            severity: critical
+            cooldown: 15m
+
+          - name: "pipeline-critical"
+            condition: "state == critical"
+            severity: critical
+            cooldown: 5m
+
+          - name: "cert-expiring"
+            condition: "cert_days_left < 30"
+            severity: warning
+            cooldown: 24h
+
+        webhooks:
+          - type: slack
+            url_env: SLACK_WEBHOOK_URL     # injected from Secret
+          - type: teams
+            url_env: TEAMS_WEBHOOK_URL     # injected from Secret

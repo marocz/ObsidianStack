@@ -1,0 +1,35 @@
+{{- if .Values.server.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "obsidianstack.fullname" . }}-server
+  namespace: {{ include "obsidianstack.namespace" . }}
+  labels:
+    {{- include "obsidianstack.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  {{- with .Values.server.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.server.ingress.className }}
+  ingressClassName: {{ .Values.server.ingress.className }}
+  {{- end }}
+  {{- if .Values.server.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.server.ingress.host }}
+      secretName: {{ .Values.server.ingress.tlsSecretName | default (printf "%s-server-tls" (include "obsidianstack.fullname" .)) }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.server.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "obsidianstack.fullname" . }}-server
+                port:
+                  name: http
+{{- end }}
