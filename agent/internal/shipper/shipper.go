@@ -52,9 +52,10 @@ func New(cfg config.AgentConfig) *Shipper {
 }
 
 // Ship converts a compute.Result to a proto snapshot and enqueues it.
+// certs contains any TLS certificate status records for this source (may be nil).
 // If the buffer is full the oldest entry is evicted to make room.
-func (s *Shipper) Ship(res *compute.Result) {
-	snap := toProto(res)
+func (s *Shipper) Ship(res *compute.Result, certs []*pb.CertStatus) {
+	snap := toProto(res, certs)
 	select {
 	case s.buf <- snap:
 	default:

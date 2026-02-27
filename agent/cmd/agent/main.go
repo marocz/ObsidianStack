@@ -6,10 +6,15 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
+	"time"
 
+	pb "github.com/obsidianstack/obsidianstack/gen/obsidian/v1"
+
+	"github.com/obsidianstack/obsidianstack/agent/internal/compute"
 	"github.com/obsidianstack/obsidianstack/agent/internal/config"
+	"github.com/obsidianstack/obsidianstack/agent/internal/scraper"
+	"github.com/obsidianstack/obsidianstack/agent/internal/security"
 	"github.com/obsidianstack/obsidianstack/agent/internal/shipper"
 )
 
@@ -36,19 +41,32 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	// Hold the latest config in a mutex-protected pointer so hot-reload is safe.
-	var mu sync.RWMutex
-	current := cfg
+	// Build scraper + engine instances from the initial config.
+	// Hot-reload updates logging only; rebuilding scrapers on reload is T-future.
+	type pipeline struct {
+		src    config.Source
+		s      scraper.Scraper
+		engine *compute.Engine
+	}
+	var pipelines []pipeline
+	for _, src := range cfg.Agent.Sources {
+		s, err := scraper.New(src)
+		if err != nil {
+			slog.Error("skipping source — could not build scraper", "source", src.ID, "err", err)
+			continue
+		}
+		pipelines = append(pipelines, pipeline{src: src, s: s, engine: compute.NewEngine()})
+		slog.Info("registered source", "id", src.ID, "type", src.Type, "endpoint", src.Endpoint)
+	}
 
-	// Watch config file for hot-reload in background.
+	if len(pipelines) == 0 {
+		slog.Warn("no sources configured — agent will idle")
+	}
+
+	// Watch config file for hot-reload (logs only in this phase).
 	go func() {
 		if err := config.Watch(ctx, *configPath, func(updated *config.Config) {
-			mu.Lock()
-			current = updated
-			mu.Unlock()
-			slog.Info("config hot-reloaded",
-				"sources", len(updated.Agent.Sources),
-			)
+			slog.Info("config hot-reloaded", "sources", len(updated.Agent.Sources))
 		}); err != nil {
 			slog.Error("config watcher stopped", "err", err)
 		}
@@ -58,9 +76,40 @@ func main() {
 	ship := shipper.New(cfg.Agent)
 	go ship.Run(ctx)
 
-	// TODO(T003-T005): build scraper instances from cfg.Agent.Sources,
-	// feed them through compute.Engine, then call ship.Ship(result)
-	// on each tick of cfg.Agent.ScrapeInterval.
+	// Scrape loop: poll every ScrapeInterval, compute strength score, ship.
+	go func() {
+		ticker := time.NewTicker(cfg.Agent.ScrapeInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case t := <-ticker.C:
+				for _, p := range pipelines {
+					res, err := p.s.Scrape(ctx)
+					if err != nil {
+						slog.Warn("scrape error", "source", p.src.ID, "err", err)
+						continue
+					}
+
+					// TLS cert check — runs only for HTTPS endpoints.
+					var certs []*pb.CertStatus
+					if cs := security.Check(ctx, p.src); cs != nil {
+						certs = []*pb.CertStatus{cs}
+					}
+
+					if result := p.engine.Process(res, t); result != nil {
+						ship.Ship(result, certs)
+						slog.Debug("shipped snapshot",
+							"source", p.src.ID,
+							"state", result.State,
+							"score", result.StrengthScore,
+						)
+					}
+				}
+			}
+		}
+	}()
 
 	<-ctx.Done()
 	slog.Info("obsidianstack-agent shutting down")

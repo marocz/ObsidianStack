@@ -6,19 +6,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/obsidianstack/obsidianstack/server/internal/alerts"
 	"github.com/obsidianstack/obsidianstack/server/internal/store"
 )
 
 // Handler is the HTTP handler for all /api/v1/* endpoints.
 // It reads pipeline state from the snapshot store and returns JSON responses.
 type Handler struct {
-	store *store.Store
-	mux   *http.ServeMux
+	store  *store.Store
+	engine *alerts.Engine
+	mux    *http.ServeMux
 }
 
-// New creates a Handler wired to the given snapshot store and registers all routes.
-func New(st *store.Store) http.Handler {
-	h := &Handler{store: st, mux: http.NewServeMux()}
+// New creates a Handler wired to the given snapshot store and alerts engine,
+// and registers all routes.
+func New(st *store.Store, engine *alerts.Engine) http.Handler {
+	h := &Handler{store: st, engine: engine, mux: http.NewServeMux()}
 
 	h.mux.HandleFunc("/api/v1/health", h.health)
 	h.mux.HandleFunc("/api/v1/pipelines", h.listPipelines)
@@ -150,13 +153,13 @@ func (h *Handler) signals(w http.ResponseWriter, r *http.Request) {
 	jsonResp(w, http.StatusOK, resp)
 }
 
-// alerts returns GET /api/v1/alerts — active alerts (empty until T021).
+// alerts returns GET /api/v1/alerts — active and recently resolved alerts.
 func (h *Handler) alerts(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		jsonErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	jsonResp(w, http.StatusOK, []struct{}{})
+	jsonResp(w, http.StatusOK, h.engine.Active())
 }
 
 // certs returns GET /api/v1/certs — cert status per source (empty until T011).

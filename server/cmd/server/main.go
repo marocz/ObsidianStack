@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 
 	pb "github.com/obsidianstack/obsidianstack/gen/obsidian/v1"
+	"github.com/obsidianstack/obsidianstack/server/internal/alerts"
 	"github.com/obsidianstack/obsidianstack/server/internal/api"
 	"github.com/obsidianstack/obsidianstack/server/internal/auth"
 	"github.com/obsidianstack/obsidianstack/server/internal/config"
@@ -52,6 +53,9 @@ func main() {
 	st := store.New(cfg.Server.Snapshot.TTL)
 	go st.Run(ctx)
 
+	// Alerts engine — evaluates rules on every incoming snapshot.
+	alertEngine := alerts.New(cfg.Server.Alerts)
+
 	// gRPC server with optional API key authentication interceptor.
 	interceptor := auth.APIKeyInterceptor(
 		cfg.Server.Auth.Mode,
@@ -59,7 +63,7 @@ func main() {
 		cfg.Server.Auth.Key(),
 	)
 	grpcSrv := grpc.NewServer(grpc.UnaryInterceptor(interceptor))
-	pb.RegisterSnapshotServiceServer(grpcSrv, receiver.New(st))
+	pb.RegisterSnapshotServiceServer(grpcSrv, receiver.New(st, alertEngine))
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Server.GRPCPort))
 	if err != nil {
@@ -81,7 +85,7 @@ func main() {
 
 	// Combined HTTP server: REST API + WebSocket hub on HTTPPort.
 	httpMux := http.NewServeMux()
-	httpMux.Handle("/api/", api.New(st))
+	httpMux.Handle("/api/", api.New(st, alertEngine))
 	httpMux.Handle("/ws/stream", hub)
 
 	httpSrv := &http.Server{

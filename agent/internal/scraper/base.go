@@ -127,7 +127,7 @@ func fetchMetrics(ctx context.Context, client *http.Client, url string) (map[str
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
-	req.Header.Set("Accept", string(expfmt.FmtText))
+	req.Header.Set("Accept", string(expfmt.NewFormat(expfmt.TypeTextPlain)))
 
 	resp, err := client.Do(req)
 	if err != nil {
