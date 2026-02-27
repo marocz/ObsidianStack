@@ -33,6 +33,9 @@ config.yaml
 config/agent.yaml
 config/server.yaml
 
+# Cluster deployment session notes — may contain passwords / tokens
+deploy/cluster/session-notes.md
+
 # Node / UI
 ui/node_modules/
 ui/dist/
