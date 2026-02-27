@@ -31,6 +31,7 @@ type PipelineResponse struct {
 	UptimePct        float64          `json:"uptime_pct"`
 	ErrorMessage     string           `json:"error_message,omitempty"`
 	Signals          []SignalResponse  `json:"signals"`
+	Diagnostics      []DiagnosticHint `json:"diagnostics"`
 	LastSeen         string           `json:"last_seen"` // RFC3339
 }
 

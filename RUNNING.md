@@ -138,6 +138,107 @@ htpasswd /etc/nginx/.htpasswd admin   # type a new password at the prompt
 
 ---
 
+## Deploying to Kubernetes with Helm
+
+### Quick install (default values)
+
+```bash
+helm upgrade --install obsidianstack charts/obsidianstack \
+  --namespace obsidianstack \
+  --create-namespace
+```
+
+### With your sources and secrets
+
+Create a `my-values.yaml`:
+```yaml
+agent:
+  image:
+    repository: YOURDOCKERHUB/obsidianstack-agent
+    tag: v0.1.0
+  config: |
+    server_endpoint: "obsidianstack-server:50051"
+    scrape_interval: 15s
+    sources:
+      - id: "prometheus"
+        type: prometheus
+        endpoint: "http://prometheus.monitoring:9090/metrics"
+      - id: "loki"
+        type: loki
+        endpoint: "http://loki.loki:3100/metrics"
+      - id: "otel-collector"
+        type: otelcol
+        endpoint: "http://otel-collector.monitoring:8888/metrics"
+  secrets:
+    PROM_PASSWORD: "your-plain-text-password"
+
+server:
+  image:
+    repository: YOURDOCKERHUB/obsidianstack-server
+    tag: v0.1.0
+  ingress:
+    enabled: true
+    className: nginx
+    host: obs.yourdomain.com
+    tls: true
+  secrets:
+    SLACK_WEBHOOK_URL: "https://hooks.slack.com/services/..."
+```
+
+```bash
+helm upgrade --install obsidianstack charts/obsidianstack \
+  --namespace obsidianstack \
+  --create-namespace \
+  --values my-values.yaml
+```
+
+### Build and push Docker images
+
+```bash
+# One-time: create a buildx builder for multi-arch
+docker buildx create --use --name multiarch
+
+# Push to Docker Hub (you must be logged in: docker login)
+make docker-push DOCKER_USER=yourname VERSION=v0.1.0
+```
+
+Or let GitHub Actions do it automatically: push a tag and the workflow fires:
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+Requires two GitHub secrets: `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`
+(Settings → Secrets → Actions → New repository secret).
+
+---
+
+## Adding an OTel Collector source
+
+The agent natively understands OTel Collector's internal metrics.
+
+Enable metrics on your OTel Collector (`config.yaml`):
+```yaml
+service:
+  telemetry:
+    metrics:
+      address: 0.0.0.0:8888
+```
+
+Add to `config/agent.yaml`:
+```yaml
+sources:
+  - id: "otel-collector"
+    type: otelcol
+    endpoint: "http://otel-collector:8888/metrics"
+```
+
+The agent will report:
+- **Received / dropped** per signal type (spans, metric points, log records)
+- **Exporter queue depth** — early backpressure warning before drops occur
+- **Receiver refusals** — upstream rejection count
+
+---
+
 ## Stopping everything
 
 ```bash

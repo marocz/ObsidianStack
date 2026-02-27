@@ -1,9 +1,13 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 WORKDIR /build
+# Cache dependencies separately from source
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /obsidianstack-agent ./agent/cmd/agent
+RUN CGO_ENABLED=0 GOOS=linux go build \
+      -ldflags="-s -w" \
+      -o /obsidianstack-agent \
+      ./agent/cmd/agent
 
 FROM gcr.io/distroless/static:nonroot
 USER nonroot:nonroot

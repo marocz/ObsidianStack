@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { usePipelines } from '../hooks/usePipelines'
 import type { PipelineResponse, SignalResponse } from '../api/types'
+import { DiagnosticPanel, DiagDrawer } from '../components/DiagnosticPanel'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -9,10 +10,6 @@ function fmtRate(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}k`
   return n.toFixed(0)
-}
-
-function fmtScore(n: number): string {
-  return `${Math.round(n)}%`
 }
 
 function ago(iso: string): string {
@@ -72,8 +69,6 @@ function ScoreBar({ score }: { score: number }) {
   )
 }
 
-// ─── Expanded row — signals breakdown ─────────────────────────────────────────
-
 function SignalChip({ sig }: { sig: SignalResponse }) {
   const typeColor: Record<string, string> = {
     metrics: '#00d4ff',
@@ -95,10 +90,26 @@ function SignalChip({ sig }: { sig: SignalResponse }) {
   )
 }
 
-// ─── Pipeline row with expand ──────────────────────────────────────────────────
+// ─── Pipeline row ──────────────────────────────────────────────────────────────
 
-function PipelineRow({ p }: { p: PipelineResponse }) {
+interface PipelineRowProps {
+  p: PipelineResponse
+  onDiagnose: (p: PipelineResponse) => void
+}
+
+function PipelineRow({ p, onDiagnose }: PipelineRowProps) {
   const [expanded, setExpanded] = useState(false)
+
+  // Worst diagnostic level for the inline compact chip
+  const worstLevel = p.diagnostics?.reduce<string>((worst, d) => {
+    const order = { critical: 0, warning: 1, info: 2, ok: 3 }
+    return (order[d.level as keyof typeof order] ?? 9) < (order[worst as keyof typeof order] ?? 9) ? d.level : worst
+  }, 'ok') ?? 'ok'
+
+  const levelDot: Record<string, string> = {
+    ok: '#00e676', info: '#00d4ff', warning: '#ffab40', critical: '#ff4f6a',
+  }
+
   return (
     <>
       <tr
@@ -108,7 +119,6 @@ function PipelineRow({ p }: { p: PipelineResponse }) {
         onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.015)')}
         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
       >
-        {/* Expand chevron */}
         <td className="pl-4 pr-2 py-3 w-6">
           <svg
             width="12" height="12" viewBox="0 0 12 12" fill="none"
@@ -118,10 +128,25 @@ function PipelineRow({ p }: { p: PipelineResponse }) {
             <path d="M4 2l4 4-4 4" />
           </svg>
         </td>
+
+        {/* Source ID + type */}
         <td className="px-3 py-3">
-          <p className="text-[12px] font-semibold text-obs-text">{p.source_id}</p>
-          <p className="text-[10px] text-obs-muted">{p.source_type}{p.namespace ? ` · ${p.namespace}` : ''}</p>
+          <div className="flex items-center gap-2">
+            <div>
+              <p className="text-[12px] font-semibold text-obs-text">{p.source_id}</p>
+              <p className="text-[10px] text-obs-muted">{p.source_type}{p.namespace ? ` · ${p.namespace}` : ''}</p>
+            </div>
+            {/* Diagnostic indicator dot */}
+            {p.diagnostics && p.diagnostics.length > 0 && worstLevel !== 'ok' && (
+              <span
+                className="h-1.5 w-1.5 rounded-full flex-shrink-0"
+                style={{ background: levelDot[worstLevel], boxShadow: `0 0 5px ${levelDot[worstLevel]}` }}
+                title="Has diagnostic insights — click to expand"
+              />
+            )}
+          </div>
         </td>
+
         <td className="px-3 py-3"><StatePill state={p.state} /></td>
         <td className="px-3 py-3 text-right">
           <span className="text-[12px] text-obs-text tabular-nums">{fmtRate(p.throughput_per_min)}</span>
@@ -142,14 +167,33 @@ function PipelineRow({ p }: { p: PipelineResponse }) {
         </td>
       </tr>
 
-      {/* Expanded: signals + extra details */}
+      {/* Expanded: diagnostics + signals + stats */}
       {expanded && (
         <tr style={{ borderBottom: '1px solid rgba(30,45,61,0.5)' }}>
           <td colSpan={8} className="px-4 pb-4 pt-1">
             <div
-              className="rounded-lg p-3 space-y-3"
+              className="rounded-lg p-4 space-y-4"
               style={{ background: '#080c10', border: '1px solid #1e2d3d' }}
             >
+              {/* Diagnostic chips */}
+              {p.diagnostics && p.diagnostics.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] uppercase tracking-wide text-obs-muted">
+                      Insights — hover for explanation, click to expand
+                    </p>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onDiagnose(p) }}
+                      className="text-[10px] px-2 py-0.5 rounded transition-colors hover:text-obs-accent"
+                      style={{ border: '1px solid #1e2d3d', color: '#4a6080' }}
+                    >
+                      Open full report →
+                    </button>
+                  </div>
+                  <DiagnosticPanel diagnostics={p.diagnostics} />
+                </div>
+              )}
+
               {/* Quick stats */}
               <div className="grid grid-cols-3 gap-3 text-[11px]">
                 <div>
@@ -158,7 +202,9 @@ function PipelineRow({ p }: { p: PipelineResponse }) {
                 </div>
                 <div>
                   <p className="text-obs-muted">Uptime</p>
-                  <p className="font-semibold text-obs-text">{p.uptime_pct.toFixed(1)}%</p>
+                  <p className="font-semibold" style={{ color: p.uptime_pct < 90 ? '#ffab40' : '#e8f1ff' }}>
+                    {p.uptime_pct.toFixed(1)}%
+                  </p>
                 </div>
                 <div>
                   <p className="text-obs-muted">P95 latency</p>
@@ -168,10 +214,10 @@ function PipelineRow({ p }: { p: PipelineResponse }) {
                 </div>
               </div>
 
-              {/* Signals */}
+              {/* Signals breakdown */}
               {p.signals && p.signals.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] uppercase tracking-wide text-obs-muted">Signals</p>
+                  <p className="text-[10px] uppercase tracking-wide text-obs-muted">Signal breakdown</p>
                   <div className="grid grid-cols-3 gap-2">
                     {p.signals.map((s) => <SignalChip key={s.type} sig={s} />)}
                   </div>
@@ -181,7 +227,7 @@ function PipelineRow({ p }: { p: PipelineResponse }) {
               {/* Error */}
               {p.error_message && (
                 <div
-                  className="rounded px-3 py-2 text-[11px]"
+                  className="rounded px-3 py-2 text-[11px] font-mono"
                   style={{ background: 'rgba(255,79,106,0.06)', border: '1px solid rgba(255,79,106,0.2)', color: '#ff4f6a' }}
                 >
                   {p.error_message}
@@ -222,6 +268,7 @@ export default function Pipelines() {
   const [sortKey, setSortKey] = useState<SortKey>('strength_score')
   const [sortAsc, setSortAsc] = useState(false)
   const [filter, setFilter] = useState('')
+  const [drawerPipeline, setDrawerPipeline] = useState<PipelineResponse | null>(null)
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc((x) => !x)
@@ -229,7 +276,9 @@ export default function Pipelines() {
   }
 
   const filtered = pipelines.filter((p) =>
-    filter === '' || p.source_id.toLowerCase().includes(filter.toLowerCase()) || p.source_type.toLowerCase().includes(filter.toLowerCase())
+    filter === '' ||
+    p.source_id.toLowerCase().includes(filter.toLowerCase()) ||
+    p.source_type.toLowerCase().includes(filter.toLowerCase())
   )
 
   const sorted = [...filtered].sort((a, b) => {
@@ -242,10 +291,7 @@ export default function Pipelines() {
   function SortTh({ label, col }: { label: string; col: SortKey }) {
     const active = sortKey === col
     return (
-      <th
-        className="px-3 pb-2 pt-1 text-left cursor-pointer select-none"
-        onClick={() => toggleSort(col)}
-      >
+      <th className="px-3 pb-2 pt-1 text-left cursor-pointer select-none" onClick={() => toggleSort(col)}>
         <span
           className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[1px]"
           style={{ color: active ? '#00d4ff' : '#4a6080' }}
@@ -267,92 +313,114 @@ export default function Pipelines() {
   const criticalCount = pipelines.filter((p) => p.state === 'critical').length
 
   return (
-    <div className="space-y-5">
+    <>
+      <div className="space-y-5">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-syne text-[22px] font-bold text-obs-text" style={{ letterSpacing: '-0.3px' }}>
+              Pipelines
+            </h1>
+            <p className="text-[11px] text-obs-muted mt-0.5">
+              {liveSnapshot
+                ? `Live · updated ${new Date(liveSnapshot.generated_at).toLocaleTimeString()}`
+                : 'REST API · 15s'}
+            </p>
+          </div>
 
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-syne text-[22px] font-bold text-obs-text" style={{ letterSpacing: '-0.3px' }}>
-            Pipelines
-          </h1>
-          <p className="text-[11px] text-obs-muted mt-0.5">
-            {liveSnapshot ? `Live · updated ${new Date(liveSnapshot.generated_at).toLocaleTimeString()}` : 'REST API · 15s'}
-          </p>
+          <div className="flex items-center gap-2">
+            {[
+              { label: `${healthyCount} healthy`,  color: '#00e676' },
+              { label: `${degradedCount} degraded`, color: '#ffab40' },
+              { label: `${criticalCount} critical`, color: '#ff4f6a' },
+            ].map(({ label, color }) => (
+              <span
+                key={label}
+                className="text-[10px] font-semibold px-2.5 py-1 rounded"
+                style={{ background: `${color}12`, border: `1px solid ${color}30`, color }}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
         </div>
 
-        {/* Summary badges */}
-        <div className="flex items-center gap-2">
-          {[
-            { label: `${healthyCount} healthy`,  color: '#00e676' },
-            { label: `${degradedCount} degraded`, color: '#ffab40' },
-            { label: `${criticalCount} critical`, color: '#ff4f6a' },
-          ].map(({ label, color }) => (
-            <span
-              key={label}
-              className="text-[10px] font-semibold px-2.5 py-1 rounded"
-              style={{ background: `${color}12`, border: `1px solid ${color}30`, color }}
-            >
-              {label}
-            </span>
-          ))}
-        </div>
-      </div>
+        {/* Filter */}
+        <input
+          type="text"
+          placeholder="Filter by source ID or type..."
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="w-full rounded px-3 py-2 text-[12px] text-obs-text outline-none"
+          style={{ background: '#0d1117', border: '1px solid #1e2d3d', fontFamily: '"JetBrains Mono", monospace' }}
+          onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(0,212,255,0.4)')}
+          onBlur={(e)  => (e.currentTarget.style.borderColor = '#1e2d3d')}
+        />
 
-      {/* Filter */}
-      <input
-        type="text"
-        placeholder="Filter by source ID or type..."
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        className="w-full rounded px-3 py-2 text-[12px] text-obs-text outline-none"
-        style={{
-          background: '#0d1117',
-          border: '1px solid #1e2d3d',
-          fontFamily: '"JetBrains Mono", monospace',
-        }}
-        onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(0,212,255,0.4)')}
-        onBlur={(e) => (e.currentTarget.style.borderColor = '#1e2d3d')}
-      />
-
-      {/* Table */}
-      <div className="rounded-lg overflow-hidden" style={{ background: '#0d1117', border: '1px solid #1e2d3d' }}>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr style={{ borderBottom: '1px solid #1e2d3d' }}>
-                <th className="pl-4 pr-2 pb-2 pt-1 w-6" />
-                <SortTh label="Pipeline"   col="source_id" />
-                <SortTh label="Status"     col="state" />
-                <SortTh label="Throughput" col="throughput_per_min" />
-                <SortTh label="Drop rate"  col="drop_pct" />
-                <SortTh label="Score"      col="strength_score" />
-                <th className="px-3 pb-2 pt-1 text-left text-[10px] font-semibold uppercase tracking-[1px] text-obs-muted">Latency</th>
-                <th className="px-3 pb-2 pt-1 text-left text-[10px] font-semibold uppercase tracking-[1px] text-obs-muted">Last seen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && !liveSnapshot ? (
-                Array.from({ length: 5 }).map((_, i) => <RowSkeleton key={i} />)
-              ) : sorted.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-16 text-center">
-                    <p className="text-[12px] text-obs-muted">
-                      {filter ? 'No pipelines match the filter.' : 'No pipelines reporting yet.'}
-                    </p>
-                  </td>
+        {/* Table */}
+        <div className="rounded-lg overflow-hidden" style={{ background: '#0d1117', border: '1px solid #1e2d3d' }}>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr style={{ borderBottom: '1px solid #1e2d3d' }}>
+                  <th className="pl-4 pr-2 pb-2 pt-1 w-6" />
+                  <SortTh label="Pipeline"   col="source_id" />
+                  <SortTh label="Status"     col="state" />
+                  <SortTh label="Throughput" col="throughput_per_min" />
+                  <SortTh label="Drop rate"  col="drop_pct" />
+                  <SortTh label="Score"      col="strength_score" />
+                  <th className="px-3 pb-2 pt-1 text-left text-[10px] font-semibold uppercase tracking-[1px] text-obs-muted">Latency</th>
+                  <th className="px-3 pb-2 pt-1 text-left text-[10px] font-semibold uppercase tracking-[1px] text-obs-muted">Last seen</th>
                 </tr>
-              ) : (
-                sorted.map((p) => <PipelineRow key={p.source_id} p={p} />)
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {isLoading && !liveSnapshot ? (
+                  Array.from({ length: 5 }).map((_, i) => <RowSkeleton key={i} />)
+                ) : sorted.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-16 text-center">
+                      <p className="text-[12px] text-obs-muted">
+                        {filter ? 'No pipelines match the filter.' : 'No pipelines reporting yet.'}
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  sorted.map((p) => (
+                    <PipelineRow
+                      key={p.source_id}
+                      p={p}
+                      onDiagnose={setDrawerPipeline}
+                    />
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
+
+        <p className="text-[10px] text-obs-muted text-right">
+          {sorted.length} of {pipelines.length} pipeline{pipelines.length !== 1 ? 's' : ''}
+          {filter && ` matching "${filter}"`} · click row to expand · click insight chips for explanation
+        </p>
       </div>
 
-      <p className="text-[10px] text-obs-muted text-right">
-        {sorted.length} of {pipelines.length} pipeline{pipelines.length !== 1 ? 's' : ''}
-        {filter && ` matching "${filter}"`} · click a row to expand signals
-      </p>
-    </div>
+      {/* Diagnostic drawer */}
+      {drawerPipeline && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40"
+            style={{ background: 'rgba(0,0,0,0.5)' }}
+            onClick={() => setDrawerPipeline(null)}
+          />
+          <DiagDrawer
+            sourceId={drawerPipeline.source_id}
+            sourceType={drawerPipeline.source_type}
+            diagnostics={drawerPipeline.diagnostics ?? []}
+            onClose={() => setDrawerPipeline(null)}
+          />
+        </>
+      )}
+    </>
   )
 }

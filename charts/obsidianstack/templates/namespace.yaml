@@ -1,0 +1,8 @@
+{{- if .Values.namespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "obsidianstack.namespace" . }}
+  labels:
+    {{- include "obsidianstack.labels" . | nindent 4 }}
+{{- end }}

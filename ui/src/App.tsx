@@ -8,6 +8,7 @@ import AddSourceModal from './components/AddSourceModal'
 import Dashboard from './pages/Dashboard'
 import Pipelines from './pages/Pipelines'
 import Signals from './pages/Signals'
+import Certs from './pages/Certs'
 import NotFound from './pages/NotFound'
 
 const queryClient = new QueryClient({
@@ -163,7 +164,7 @@ function Sidebar() {
       <div className="px-4 pb-3">
         <p className="text-[10px] font-semibold tracking-[1.5px] uppercase text-obs-muted mb-2">Security</p>
         <nav className="space-y-0.5">
-          <NavItem to="/certs" icon={<IconCerts />}    label="Certificates" disabled />
+          <NavItem to="/certs" icon={<IconCerts />}    label="Certificates" />
           <NavItem to="/settings" icon={<IconSettings />} label="Settings"  disabled />
         </nav>
       </div>
@@ -290,6 +291,7 @@ function AppShell() {
             <Route path="/"          element={<Dashboard onAddSource={() => setShowAddSource(true)} />} />
             <Route path="/pipelines" element={<Pipelines />} />
             <Route path="/signals"   element={<Signals />} />
+            <Route path="/certs"     element={<Certs />} />
             <Route path="*"          element={<NotFound />} />
           </Routes>
         </main>
