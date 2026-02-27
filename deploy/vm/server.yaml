@@ -1,0 +1,30 @@
+server:
+  grpc_port: 50051
+  http_port: 8080
+
+  auth:
+    mode: none   # set to apikey and configure key_env for production
+
+  snapshot:
+    ttl: 5m
+
+  alerts:
+    rules:
+      - name: "high-drop-rate"
+        condition: "drop_pct > 10"
+        severity: critical
+        cooldown: 15m
+
+      - name: "pipeline-critical"
+        condition: "state == critical"
+        severity: critical
+        cooldown: 5m
+
+      - name: "cert-expiring"
+        condition: "cert_days_left < 30"
+        severity: warning
+        cooldown: 24h
+
+    # webhooks:
+    #   - type: slack
+    #     url_env: SLACK_WEBHOOK_URL
