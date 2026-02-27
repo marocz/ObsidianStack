@@ -101,9 +101,12 @@ interface NavItemProps {
 function NavItem({ to, icon, label, badge, badgeColor = '#ff4f6a', disabled = false }: NavItemProps) {
   if (disabled) {
     return (
-      <div className="flex items-center gap-2.5 rounded-md px-2 py-[7px] text-obs-muted cursor-not-allowed select-none">
-        <span className="opacity-50">{icon}</span>
-        <span className="flex-1 text-[12px]">{label}</span>
+      <div className="flex items-center gap-2.5 rounded-md px-2 py-[7px] cursor-default select-none" style={{ opacity: 0.4 }}>
+        <span>{icon}</span>
+        <span className="flex-1 text-[12px] text-obs-muted2">{label}</span>
+        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(74,96,128,0.15)', color: '#4a6080', letterSpacing: '0.5px' }}>
+          SOON
+        </span>
       </div>
     )
   }
