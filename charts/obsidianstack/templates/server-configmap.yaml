@@ -8,4 +8,5 @@ metadata:
     app.kubernetes.io/component: server
 data:
   server.yaml: |
-    {{- .Values.server.config | nindent 4 }}
+    server:
+    {{- .Values.server.config | nindent 6 }}
