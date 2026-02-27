@@ -2,25 +2,79 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"google.golang.org/grpc"
+
+	pb "github.com/obsidianstack/obsidianstack/gen/obsidian/v1"
+	"github.com/obsidianstack/obsidianstack/server/internal/auth"
+	"github.com/obsidianstack/obsidianstack/server/internal/config"
+	"github.com/obsidianstack/obsidianstack/server/internal/receiver"
+	"github.com/obsidianstack/obsidianstack/server/internal/store"
 )
 
 func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	configPath := flag.String("config", "config.yaml", "path to config file")
+	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
-	slog.Info("obsidianstack-server starting")
+	slog.Info("obsidianstack-server starting", "config", *configPath)
 
-	// TODO(T008): start gRPC receiver
-	// TODO(T009): start REST API
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		slog.Error("failed to load config", "err", err)
+		os.Exit(1)
+	}
+
+	slog.Info("config loaded",
+		"grpc_port", cfg.Server.GRPCPort,
+		"http_port", cfg.Server.HTTPPort,
+		"auth_mode", cfg.Server.Auth.Mode,
+		"snapshot_ttl", cfg.Server.Snapshot.TTL,
+	)
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	// Snapshot store with background TTL eviction.
+	st := store.New(cfg.Server.Snapshot.TTL)
+	go st.Run(ctx)
+
+	// gRPC server with optional API key authentication interceptor.
+	interceptor := auth.APIKeyInterceptor(
+		cfg.Server.Auth.Mode,
+		cfg.Server.Auth.EffectiveHeader(),
+		cfg.Server.Auth.Key(),
+	)
+	grpcSrv := grpc.NewServer(grpc.UnaryInterceptor(interceptor))
+	pb.RegisterSnapshotServiceServer(grpcSrv, receiver.New(st))
+
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Server.GRPCPort))
+	if err != nil {
+		slog.Error("failed to listen on gRPC port",
+			"port", cfg.Server.GRPCPort, "err", err)
+		os.Exit(1)
+	}
+
+	go func() {
+		slog.Info("gRPC receiver listening", "port", cfg.Server.GRPCPort)
+		if err := grpcSrv.Serve(lis); err != nil {
+			slog.Error("gRPC server stopped", "err", err)
+		}
+	}()
+
+	// TODO(T009): start REST API on cfg.Server.HTTPPort
 	// TODO(T010): start WebSocket hub
 
 	<-ctx.Done()
 	slog.Info("obsidianstack-server shutting down")
+	grpcSrv.GracefulStop()
 }
