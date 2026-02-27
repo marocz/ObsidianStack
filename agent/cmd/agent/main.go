@@ -9,9 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	pb "github.com/obsidianstack/obsidianstack/gen/obsidian/v1"
+
 	"github.com/obsidianstack/obsidianstack/agent/internal/compute"
 	"github.com/obsidianstack/obsidianstack/agent/internal/config"
 	"github.com/obsidianstack/obsidianstack/agent/internal/scraper"
+	"github.com/obsidianstack/obsidianstack/agent/internal/security"
 	"github.com/obsidianstack/obsidianstack/agent/internal/shipper"
 )
 
@@ -88,8 +91,15 @@ func main() {
 						slog.Warn("scrape error", "source", p.src.ID, "err", err)
 						continue
 					}
+
+					// TLS cert check — runs only for HTTPS endpoints.
+					var certs []*pb.CertStatus
+					if cs := security.Check(ctx, p.src); cs != nil {
+						certs = []*pb.CertStatus{cs}
+					}
+
 					if result := p.engine.Process(res, t); result != nil {
-						ship.Ship(result)
+						ship.Ship(result, certs)
 						slog.Debug("shipped snapshot",
 							"source", p.src.ID,
 							"state", result.State,
