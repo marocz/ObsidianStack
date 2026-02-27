@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useStore } from './store/useStore'
 import { usePipelines } from './hooks/usePipelines'
+import AddSourceModal from './components/AddSourceModal'
 import Dashboard from './pages/Dashboard'
 import NotFound from './pages/NotFound'
 
@@ -198,7 +199,7 @@ function Sidebar() {
 
 // ─── Header ───────────────────────────────────────────────────────────────────
 
-function Header() {
+function Header({ onAddSource }: { onAddSource: () => void }) {
   const wsConnected = useStore((s) => s.wsConnected)
   const [utc, setUtc] = useState('')
   const location = useLocation()
@@ -253,6 +254,7 @@ function Header() {
         {/* Buttons */}
         <div className="hidden sm:flex items-center gap-2">
           <button
+            onClick={onAddSource}
             className="px-3 py-1.5 rounded text-[11px] font-semibold text-obs-muted2 transition-colors hover:text-obs-accent"
             style={{ border: '1px solid #243447' }}
           >
@@ -274,19 +276,21 @@ function Header() {
 
 function AppShell() {
   useWebSocket()
+  const [showAddSource, setShowAddSource] = useState(false)
 
   return (
     <div className="flex flex-col min-h-screen" style={{ background: '#080c10', color: '#e8f1ff' }}>
-      <Header />
+      <Header onAddSource={() => setShowAddSource(true)} />
       <div className="flex flex-1">
         <Sidebar />
         <main className="flex-1 overflow-y-auto p-6" style={{ background: '#080c10' }}>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<Dashboard onAddSource={() => setShowAddSource(true)} />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
       </div>
+      {showAddSource && <AddSourceModal onClose={() => setShowAddSource(false)} />}
     </div>
   )
 }

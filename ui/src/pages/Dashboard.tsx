@@ -315,7 +315,7 @@ type TimeRange = '1H' | '6H' | '24H' | '7D'
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-export default function Dashboard() {
+export default function Dashboard({ onAddSource }: { onAddSource?: () => void }) {
   const [timeRange, setTimeRange] = useState<TimeRange>('1H')
 
   const liveSnapshot = useStore((s) => s.liveSnapshot)
@@ -497,8 +497,17 @@ export default function Dashboard() {
                   <PipelineTableSkeleton />
                 ) : displayPipelines.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center text-[12px] text-obs-muted">
-                      No pipelines reporting. Deploy the agent to start receiving data.
+                    <td colSpan={5} className="px-4 py-12 text-center">
+                      <p className="text-[12px] text-obs-muted">No pipelines reporting yet.</p>
+                      {onAddSource && (
+                        <button
+                          onClick={onAddSource}
+                          className="mt-3 px-4 py-1.5 rounded text-[11px] font-semibold transition-colors hover:brightness-110"
+                          style={{ background: 'rgba(0,212,255,0.1)', border: '1px solid rgba(0,212,255,0.2)', color: '#00d4ff' }}
+                        >
+                          + Add your first source
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ) : (
