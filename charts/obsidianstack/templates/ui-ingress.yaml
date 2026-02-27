@@ -1,0 +1,35 @@
+{{- if and .Values.ui.enabled .Values.ui.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "obsidianstack.fullname" . }}-ui
+  namespace: {{ include "obsidianstack.namespace" . }}
+  labels:
+    {{- include "obsidianstack.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ui
+  {{- with .Values.ui.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ui.ingress.className }}
+  ingressClassName: {{ .Values.ui.ingress.className }}
+  {{- end }}
+  {{- if .Values.ui.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.ui.ingress.host }}
+      secretName: {{ .Values.ui.ingress.tlsSecretName | default (printf "%s-ui-tls" (include "obsidianstack.fullname" .)) }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ui.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "obsidianstack.fullname" . }}-ui
+                port:
+                  name: http
+{{- end }}

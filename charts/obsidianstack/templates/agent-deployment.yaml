@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "obsidianstack.fullname" . }}-agent
+  namespace: {{ include "obsidianstack.namespace" . }}
+  labels:
+    {{- include "obsidianstack.labels" . | nindent 4 }}
+    app.kubernetes.io/component: agent
+  {{- with .Values.agent.podAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.agent.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "obsidianstack.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: agent
+  template:
+    metadata:
+      labels:
+        {{- include "obsidianstack.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: agent
+      {{- with .Values.agent.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.agent.serviceAccount.create }}
+      serviceAccountName: {{ .Values.agent.serviceAccount.name | default (printf "%s-agent" (include "obsidianstack.fullname" .)) }}
+      {{- end }}
+      containers:
+        - name: agent
+          image: {{ include "obsidianstack.agentImage" . }}
+          imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
+          args: ["-config", "/etc/obsidianstack/agent.yaml"]
+
+          {{- if .Values.agent.secrets }}
+          envFrom:
+            - secretRef:
+                name: {{ include "obsidianstack.fullname" . }}-agent-secrets
+          {{- end }}
+
+          {{- with .Values.agent.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+          volumeMounts:
+            - name: config
+              mountPath: /etc/obsidianstack
+              readOnly: true
+
+          resources:
+            {{- toYaml .Values.agent.resources | nindent 12 }}
+
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "obsidianstack.fullname" . }}-agent-config
+            items:
+              - key: agent.yaml
+                path: agent.yaml
+
+      {{- with .Values.agent.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.agent.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.agent.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: obsidianstack-agent
+  namespace: obsidianstack
+  labels:
+    app: obsidianstack-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: obsidianstack-agent
+  template:
+    metadata:
+      labels:
+        app: obsidianstack-agent
+    spec:
+      containers:
+        - name: agent
+          image: obsidianstack/agent:latest   # replace with your registry image
+          args: ["-config", "/etc/obsidianstack/agent.yaml"]
+
+          # All Secret keys become env vars — PROM_PASSWORD, LOKI_TOKEN etc.
+          envFrom:
+            - secretRef:
+                name: obsidianstack-secrets
+
+          volumeMounts:
+            - name: config
+              mountPath: /etc/obsidianstack
+              readOnly: true
+
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+
+      volumes:
+        - name: config
+          configMap:
+            name: obsidianstack-agent-config
+            items:
+              - key: agent.yaml
+                path: agent.yaml

@@ -1,0 +1,34 @@
+[Unit]
+Description=ObsidianStack Agent
+Documentation=https://github.com/obsidianstack/obsidianstack
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=obsidianstack
+Group=obsidianstack
+
+# Binary and config
+ExecStart=/usr/local/bin/obsidianstack-agent -config /etc/obsidianstack/agent.yaml
+
+# Secrets loaded from this file — never put passwords in this unit file
+EnvironmentFile=/etc/obsidianstack/agent.env
+
+# Restart policy
+Restart=on-failure
+RestartSec=10s
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/obsidianstack
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=obsidianstack-agent
+
+[Install]
+WantedBy=multi-user.target

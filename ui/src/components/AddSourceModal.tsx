@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react'
 
 type SourceType = 'prometheus' | 'loki' | 'otelcol' | 'http'
-type AuthMode   = 'none' | 'apikey' | 'bearer' | 'mtls'
+type AuthMode   = 'none' | 'basic' | 'apikey' | 'bearer' | 'mtls'
 
 interface FormState {
   id:        string
   type:      SourceType
   endpoint:  string
   authMode:  AuthMode
+  // basic auth fields
+  username:    string
+  passwordEnv: string
   // apikey fields
   header:    string
   keyEnv:    string
@@ -22,17 +25,19 @@ interface FormState {
 }
 
 const DEFAULT: FormState = {
-  id:         '',
-  type:       'prometheus',
-  endpoint:   '',
-  authMode:   'none',
-  header:     'X-API-Key',
-  keyEnv:     '',
-  tokenEnv:   '',
-  certFile:   '/etc/certs/client.crt',
-  keyFile:    '/etc/certs/client.key',
-  caFile:     '/etc/certs/ca.crt',
-  skipVerify: false,
+  id:          '',
+  type:        'prometheus',
+  endpoint:    '',
+  authMode:    'none',
+  username:    '',
+  passwordEnv: '',
+  header:      'X-API-Key',
+  keyEnv:      '',
+  tokenEnv:    '',
+  certFile:    '/etc/certs/client.crt',
+  keyFile:     '/etc/certs/client.key',
+  caFile:      '/etc/certs/ca.crt',
+  skipVerify:  false,
 }
 
 const TYPE_PLACEHOLDER: Record<SourceType, string> = {
@@ -59,7 +64,10 @@ function generateYAML(f: FormState): string {
   if (f.authMode !== 'none') {
     lines.push(`      auth:`)
     lines.push(`        mode: ${f.authMode}`)
-    if (f.authMode === 'apikey') {
+    if (f.authMode === 'basic') {
+      lines.push(`        username: "${f.username || 'admin'}"`)
+      lines.push(`        password_env: ${f.passwordEnv || 'SOURCE_PASSWORD'}`)
+    } else if (f.authMode === 'apikey') {
       lines.push(`        header: "${f.header}"`)
       lines.push(`        key_env: ${f.keyEnv || 'SOURCE_API_KEY'}`)
     } else if (f.authMode === 'bearer') {
@@ -206,7 +214,7 @@ export default function AddSourceModal({ onClose }: Props) {
               {/* Auth mode */}
               <Field label="Authentication">
                 <div className="flex gap-2">
-                  {(['none', 'apikey', 'bearer', 'mtls'] as AuthMode[]).map((m) => (
+                  {(['none', 'basic', 'apikey', 'bearer', 'mtls'] as AuthMode[]).map((m) => (
                     <button
                       key={m}
                       onClick={() => set('authMode', m)}
@@ -224,6 +232,16 @@ export default function AddSourceModal({ onClose }: Props) {
               </Field>
 
               {/* Conditional auth fields */}
+              {form.authMode === 'basic' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Username">
+                    <Input value={form.username} placeholder="admin" onChange={(v) => set('username', v)} />
+                  </Field>
+                  <Field label="Password env var">
+                    <Input value={form.passwordEnv} placeholder="PROM_PASSWORD" onChange={(v) => set('passwordEnv', v)} />
+                  </Field>
+                </div>
+              )}
               {form.authMode === 'apikey' && (
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Header name">

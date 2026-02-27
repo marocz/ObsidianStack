@@ -81,6 +81,9 @@ func (t *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	case "bearer":
 		req = req.Clone(req.Context())
 		req.Header.Set("Authorization", "Bearer "+t.src.Auth.Token())
+	case "basic":
+		req = req.Clone(req.Context())
+		req.SetBasicAuth(t.src.Auth.Username, t.src.Auth.Password())
 	}
 	return t.base.RoundTrip(req)
 }

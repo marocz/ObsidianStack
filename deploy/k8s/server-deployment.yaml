@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: obsidianstack-server
+  namespace: obsidianstack
+  labels:
+    app: obsidianstack-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: obsidianstack-server
+  template:
+    metadata:
+      labels:
+        app: obsidianstack-server
+    spec:
+      containers:
+        - name: server
+          image: obsidianstack/server:latest   # replace with your registry image
+          args: ["-config", "/etc/obsidianstack/server.yaml"]
+
+          ports:
+            - name: grpc
+              containerPort: 50051
+            - name: http
+              containerPort: 8080
+
+          # Pull all keys from the Secret as environment variables.
+          # Any key present in the Secret (SLACK_WEBHOOK_URL etc.) becomes
+          # available to the process exactly as if you had run `export KEY=value`.
+          envFrom:
+            - secretRef:
+                name: obsidianstack-secrets
+
+          volumeMounts:
+            - name: config
+              mountPath: /etc/obsidianstack
+              readOnly: true
+
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+      volumes:
+        - name: config
+          configMap:
+            name: obsidianstack-server-config
+            items:
+              - key: server.yaml
+                path: server.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: obsidianstack-server
+  namespace: obsidianstack
+spec:
+  selector:
+    app: obsidianstack-server
+  ports:
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+    - name: http
+      port: 8080
+      targetPort: 8080

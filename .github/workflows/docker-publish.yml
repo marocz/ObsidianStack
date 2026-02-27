@@ -1,0 +1,80 @@
+# Builds and pushes multi-arch Docker images to Docker Hub on every git tag
+# (e.g.  git tag v0.1.0 && git push origin v0.1.0).
+#
+# Required repository secrets:
+#   DOCKERHUB_USERNAME  — your Docker Hub username
+#   DOCKERHUB_TOKEN     — Docker Hub access token (not your password)
+#                         Create at: https://hub.docker.com/settings/security
+
+name: Publish Docker images
+
+on:
+  push:
+    tags:
+      - "v*.*.*"       # triggers on v0.1.0, v1.2.3, etc.
+  workflow_dispatch:   # allows manual trigger from the Actions tab
+
+env:
+  REGISTRY: docker.io
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      matrix:
+        include:
+          - component: agent
+            dockerfile: agent/Dockerfile
+            context: .
+            image_suffix: agent
+          - component: server
+            dockerfile: server/Dockerfile
+            context: .
+            image_suffix: server
+          - component: ui
+            dockerfile: ui/Dockerfile
+            context: ui
+            image_suffix: ui
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (for multi-arch builds)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (tags + labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USERNAME }}/obsidianstack-${{ matrix.image_suffix }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push ${{ matrix.component }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
