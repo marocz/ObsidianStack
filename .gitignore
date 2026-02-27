@@ -29,6 +29,10 @@ Thumbs.db
 config.yaml
 !config.example.yaml
 
+# config/ directory — real configs may contain passwords; only examples are committed
+config/agent.yaml
+config/server.yaml
+
 # Node / UI
 ui/node_modules/
 ui/dist/
