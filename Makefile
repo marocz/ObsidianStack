@@ -78,20 +78,64 @@ tidy: ## Update go.sum
 
 ## ── Docker ──────────────────────────────────────────────────────────────────
 
+# Override on the command line:  make docker-push DOCKER_USER=yourname VERSION=v0.1.0
+DOCKER_USER ?= obsidianstack
+VERSION     ?= dev
+
 clean: ## Remove build artifacts
 	rm -rf $(BIN)
 
-docker-agent: ## Build agent Docker image
-	docker build -f agent/Dockerfile -t obsidianstack/agent:dev .
+docker-agent: ## Build agent Docker image (local, single-arch)
+	docker build -f agent/Dockerfile -t $(DOCKER_USER)/obsidianstack-agent:$(VERSION) .
 
-docker-server: ## Build server Docker image
-	docker build -f server/Dockerfile -t obsidianstack/server:dev .
+docker-server: ## Build server Docker image (local, single-arch)
+	docker build -f server/Dockerfile -t $(DOCKER_USER)/obsidianstack-server:$(VERSION) .
+
+docker-build: docker-agent docker-server ## Build both images locally
+
+docker-push: ## Build multi-arch + push to Docker Hub (requires: docker login)
+	docker buildx build --platform linux/amd64,linux/arm64 \
+	  -f agent/Dockerfile \
+	  -t $(DOCKER_USER)/obsidianstack-agent:$(VERSION) \
+	  -t $(DOCKER_USER)/obsidianstack-agent:latest \
+	  --push .
+	docker buildx build --platform linux/amd64,linux/arm64 \
+	  -f server/Dockerfile \
+	  -t $(DOCKER_USER)/obsidianstack-server:$(VERSION) \
+	  -t $(DOCKER_USER)/obsidianstack-server:latest \
+	  --push .
+	docker buildx build --platform linux/amd64,linux/arm64 \
+	  -f ui/Dockerfile \
+	  -t $(DOCKER_USER)/obsidianstack-ui:$(VERSION) \
+	  -t $(DOCKER_USER)/obsidianstack-ui:latest \
+	  --push ./ui
 
 up: ## Start full stack with docker-compose
 	docker compose up --build
 
 down: ## Stop docker-compose stack
 	docker compose down
+
+## ── Helm ────────────────────────────────────────────────────────────────────
+
+HELM_RELEASE ?= obsidianstack
+HELM_NS      ?= obsidianstack
+HELM_CHART   := charts/obsidianstack
+
+helm-lint: ## Lint the Helm chart
+	helm lint $(HELM_CHART)
+
+helm-template: ## Render Helm templates (dry-run)
+	helm template $(HELM_RELEASE) $(HELM_CHART) --namespace $(HELM_NS)
+
+helm-install: ## Install / upgrade the chart in your current k8s context
+	helm upgrade --install $(HELM_RELEASE) $(HELM_CHART) \
+	  --namespace $(HELM_NS) \
+	  --create-namespace \
+	  --values $(HELM_CHART)/values.yaml
+
+helm-uninstall: ## Uninstall the release
+	helm uninstall $(HELM_RELEASE) --namespace $(HELM_NS)
 
 ## ── Help ────────────────────────────────────────────────────────────────────
 

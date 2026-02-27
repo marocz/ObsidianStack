@@ -27,6 +27,7 @@ type Result struct {
 	StrengthScore float64
 	UptimePct     float64
 	Signals       []SignalResult
+	ErrorMessage  string // non-empty when the scrape failed; forwarded to the server
 }
 
 // SignalResult is the per-signal-type breakdown included in Result.Signals.
@@ -78,6 +79,7 @@ func (e *Engine) Process(res *scraper.ScrapeResult, now time.Time) *Result {
 		slog.Warn("compute: scrape failed, marking unknown",
 			"source", res.SourceID, "err", res.Err)
 		out.State = StateUnknown
+		out.ErrorMessage = res.Err.Error()
 		st.updateBaseline(res, now)
 		return out
 	}

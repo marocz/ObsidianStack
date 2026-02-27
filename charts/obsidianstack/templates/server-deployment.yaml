@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "obsidianstack.fullname" . }}-server
+  namespace: {{ include "obsidianstack.namespace" . }}
+  labels:
+    {{- include "obsidianstack.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  replicas: {{ .Values.server.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "obsidianstack.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        {{- include "obsidianstack.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+      {{- with .Values.server.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.server.serviceAccount.create }}
+      serviceAccountName: {{ .Values.server.serviceAccount.name | default (printf "%s-server" (include "obsidianstack.fullname" .)) }}
+      {{- end }}
+      containers:
+        - name: server
+          image: {{ include "obsidianstack.serverImage" . }}
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          args: ["-config", "/etc/obsidianstack/server.yaml"]
+
+          ports:
+            - name: http
+              containerPort: {{ .Values.server.service.httpPort }}
+              protocol: TCP
+            - name: grpc
+              containerPort: {{ .Values.server.service.grpcPort }}
+              protocol: TCP
+
+          {{- if .Values.server.secrets }}
+          envFrom:
+            - secretRef:
+                name: {{ include "obsidianstack.fullname" . }}-server-secrets
+          {{- end }}
+
+          {{- with .Values.server.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+          volumeMounts:
+            - name: config
+              mountPath: /etc/obsidianstack
+              readOnly: true
+
+          readinessProbe:
+            {{- toYaml .Values.server.readinessProbe | nindent 12 }}
+
+          resources:
+            {{- toYaml .Values.server.resources | nindent 12 }}
+
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "obsidianstack.fullname" . }}-server-config
+            items:
+              - key: server.yaml
+                path: server.yaml
+
+      {{- with .Values.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
