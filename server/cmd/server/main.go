@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"google.golang.org/grpc"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/obsidianstack/obsidianstack/server/internal/config"
 	"github.com/obsidianstack/obsidianstack/server/internal/receiver"
 	"github.com/obsidianstack/obsidianstack/server/internal/store"
+	"github.com/obsidianstack/obsidianstack/server/internal/ws"
 )
 
 func main() {
@@ -73,19 +75,25 @@ func main() {
 		}
 	}()
 
-	// REST API on HTTPPort.
+	// WebSocket hub — broadcasts snapshots to UI clients every 5 seconds.
+	hub := ws.New(st, 5*time.Second)
+	go hub.Run(ctx)
+
+	// Combined HTTP server: REST API + WebSocket hub on HTTPPort.
+	httpMux := http.NewServeMux()
+	httpMux.Handle("/api/", api.New(st))
+	httpMux.Handle("/ws/stream", hub)
+
 	httpSrv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Server.HTTPPort),
-		Handler: api.New(st),
+		Handler: httpMux,
 	}
 	go func() {
-		slog.Info("REST API listening", "port", cfg.Server.HTTPPort)
+		slog.Info("HTTP server listening", "port", cfg.Server.HTTPPort)
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("HTTP server stopped", "err", err)
 		}
 	}()
-
-	// TODO(T010): start WebSocket hub on /ws/stream
 
 	<-ctx.Done()
 	slog.Info("obsidianstack-server shutting down")

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/obsidianstack/obsidianstack/gen/obsidian/v1"
 	"github.com/obsidianstack/obsidianstack/server/internal/store"
 )
 
@@ -200,17 +199,22 @@ func (h *Handler) snapshot(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	jsonResp(w, http.StatusOK, BuildSnapshot(h.store))
+}
 
-	entries := h.store.List()
+// BuildSnapshot reads all live entries from st and returns a SnapshotResponse.
+// It is exported so the WebSocket hub can build broadcast messages using the
+// same format as the REST /api/v1/snapshot endpoint.
+func BuildSnapshot(st *store.Store) SnapshotResponse {
+	entries := st.List()
 	pipelines := make([]PipelineResponse, 0, len(entries))
 	for _, e := range entries {
 		pipelines = append(pipelines, toPipelineResponse(e))
 	}
-
-	jsonResp(w, http.StatusOK, SnapshotResponse{
+	return SnapshotResponse{
 		Pipelines:   pipelines,
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
-	})
+	}
 }
 
 // --- helpers ----------------------------------------------------------------
@@ -281,13 +285,3 @@ func toAggregate(recv, drop float64) SignalAggregate {
 	return agg
 }
 
-// snapWithSignals is a convenience constructor used internally and in tests.
-func snapWithSignals(id string, score float64, state string, sigs []*pb.SignalStats) *pb.PipelineSnapshot {
-	return &pb.PipelineSnapshot{
-		SourceId:      id,
-		SourceType:    "otelcol",
-		State:         state,
-		StrengthScore: score,
-		Signals:       sigs,
-	}
-}
