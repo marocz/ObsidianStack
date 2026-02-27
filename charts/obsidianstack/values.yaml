@@ -1,0 +1,228 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# ObsidianStack Helm values
+# Override any value with:  helm install obsidianstack ./charts/obsidianstack \
+#                             --set server.ingress.enabled=true \
+#                             --set server.ingress.host=obs.example.com
+# ──────────────────────────────────────────────────────────────────────────────
+
+# -- Override the chart name.
+nameOverride: ""
+# -- Override the full release name.
+fullnameOverride: ""
+
+# -- Image pull secrets for private registries.
+imagePullSecrets: []
+
+# -- Labels added to every resource.
+commonLabels: {}
+
+# ── Namespace ─────────────────────────────────────────────────────────────────
+
+namespace:
+  # -- Create the namespace. Set to false if it already exists.
+  create: true
+  name: obsidianstack
+
+# ── Agent ─────────────────────────────────────────────────────────────────────
+
+agent:
+  image:
+    repository: marocz/obsidianstack-agent
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  # -- Number of agent replicas.
+  # Each replica scrapes the same sources, so keep at 1 unless you're sharding.
+  replicaCount: 1
+
+  # -- Agent configuration (rendered verbatim as agent.yaml inside the pod).
+  # Passwords / tokens must NOT go here — use agent.secrets instead.
+  config: |
+    server_endpoint: "obsidianstack-server:50051"
+    scrape_interval: 15s
+    sources: []
+    # Example sources:
+    #   - id: "prometheus"
+    #     type: prometheus
+    #     endpoint: "http://prometheus.monitoring:9090/metrics"
+    #
+    #   - id: "loki"
+    #     type: loki
+    #     endpoint: "http://loki.loki:3100/metrics"
+    #
+    #   - id: "otel-collector"
+    #     type: otelcol
+    #     endpoint: "http://otel-collector.monitoring:8888/metrics"
+    #
+    #   - id: "prometheus-prod"
+    #     type: prometheus
+    #     endpoint: "https://prom.example.com/metrics"
+    #     auth:
+    #       mode: basic
+    #       username: "admin"
+    #       password_env: PROM_PASSWORD
+    #     tls:
+    #       insecure_skip_verify: false
+
+  # -- Secrets injected as environment variables into the agent pod.
+  # Keys become env var names (e.g. PROM_PASSWORD, LOKI_TOKEN).
+  # Values are stored in a Kubernetes Secret — never committed to git.
+  secrets: {}
+  # PROM_PASSWORD: "your-plain-text-password"
+  # LOKI_TOKEN: "your-token"
+
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+  # -- Extra environment variables passed directly (non-secret).
+  extraEnv: []
+  # - name: LOG_LEVEL
+  #   value: debug
+
+  # -- Node selector for the agent pod.
+  nodeSelector: {}
+  # -- Tolerations for the agent pod.
+  tolerations: []
+  # -- Affinity rules for the agent pod.
+  affinity: {}
+
+  # -- Pod annotations.
+  podAnnotations: {}
+
+  # -- Service account.
+  serviceAccount:
+    create: false
+    name: ""
+
+# ── Server ────────────────────────────────────────────────────────────────────
+
+server:
+  image:
+    repository: marocz/obsidianstack-server
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  # -- Server configuration (rendered verbatim as server.yaml inside the pod).
+  config: |
+    grpc_port: 50051
+    http_port: 8080
+    snapshot_ttl: 5m
+    auth:
+      mode: none
+    alerts:
+      rules: []
+      # Example rules:
+      # - name: "high-drop-rate"
+      #   condition: "drop_pct > 5"
+      #   severity: "critical"
+      #   cooldown: 15m
+      # - name: "cert-expiring"
+      #   condition: "cert_days_left < 14"
+      #   severity: "warning"
+      #   cooldown: 24h
+      webhooks: []
+      # - url: "https://hooks.slack.com/services/..."
+      #   type: slack
+
+  # -- Secrets injected as environment variables into the server pod.
+  # SLACK_WEBHOOK_URL, TEAMS_WEBHOOK_URL, etc.
+  secrets: {}
+  # SLACK_WEBHOOK_URL: "https://hooks.slack.com/services/..."
+
+  service:
+    type: ClusterIP
+    httpPort: 8080
+    grpcPort: 50051
+    # -- Annotations for the Service (e.g. for AWS NLB, GCP internal LB).
+    annotations: {}
+
+  ingress:
+    # -- Expose the server HTTP API via an Ingress.
+    enabled: false
+    # -- IngressClass name (e.g. nginx, traefik, alb).
+    className: ""
+    host: "obs.example.com"
+    # -- TLS — set to true and provide a cert Secret name.
+    tls: false
+    tlsSecretName: ""
+    # -- Extra annotations for the Ingress resource.
+    annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+
+  readinessProbe:
+    httpGet:
+      path: /api/v1/health
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  extraEnv: []
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  podAnnotations: {}
+
+  serviceAccount:
+    create: false
+    name: ""
+
+# ── UI (React dashboard) ──────────────────────────────────────────────────────
+
+ui:
+  # -- Deploy the React dashboard as a separate nginx container.
+  # Disable if you prefer to serve the UI from the server binary (--ui-dir).
+  enabled: true
+
+  image:
+    repository: marocz/obsidianstack-ui
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  # -- URL the nginx container uses to proxy /api/ and /ws to the server.
+  serverUrl: "http://obsidianstack-server:8080"
+
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+
+  ingress:
+    enabled: false
+    className: ""
+    host: "obs.example.com"
+    tls: false
+    tlsSecretName: ""
+    annotations: {}
+
+  resources:
+    requests:
+      cpu: 20m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}

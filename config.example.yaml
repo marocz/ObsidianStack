@@ -48,6 +48,17 @@ agent:
         mode: bearer
         token_env: LOKI_TOKEN # env var containing the token
 
+    # Prometheus behind HTTP Basic Auth (e.g., nginx htpasswd)
+    - id: "prometheus-prod"
+      type: prometheus
+      endpoint: "https://prom-staging.example.com/metrics"
+      auth:
+        mode: basic
+        username: "admin"         # literal username
+        password_env: PROM_PASSWORD # env var containing the plain-text password
+      tls:
+        insecure_skip_verify: true  # set false in prod with a valid cert
+
     # External HTTP endpoint (e.g., Grafana SaaS health check)
     - id: "ext-grafana"
       type: http

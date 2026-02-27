@@ -1,0 +1,29 @@
+[Unit]
+Description=ObsidianStack Server
+Documentation=https://github.com/obsidianstack/obsidianstack
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=obsidianstack
+Group=obsidianstack
+
+ExecStart=/usr/local/bin/obsidianstack-server -config /etc/obsidianstack/server.yaml
+
+EnvironmentFile=/etc/obsidianstack/server.env
+
+Restart=on-failure
+RestartSec=10s
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/obsidianstack
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=obsidianstack-server
+
+[Install]
+WantedBy=multi-user.target

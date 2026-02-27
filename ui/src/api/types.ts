@@ -19,6 +19,14 @@ export interface SignalResponse {
   drop_pct: number
 }
 
+export interface DiagnosticHint {
+  key: string
+  level: 'ok' | 'info' | 'warning' | 'critical'
+  title: string
+  detail: string
+  value?: number
+}
+
 export interface PipelineResponse {
   source_id: string
   source_type: string
@@ -36,6 +44,7 @@ export interface PipelineResponse {
   uptime_pct: number
   error_message?: string
   signals: SignalResponse[]
+  diagnostics: DiagnosticHint[]
   last_seen: string
 }
 
@@ -59,6 +68,18 @@ export interface CertEntry {
   days_left: number
   issuer?: string
   not_after?: string
+}
+
+export interface AlertEntry {
+  id: string
+  rule_name: string
+  source_id: string
+  severity: 'critical' | 'warning' | 'info'
+  message: string
+  value: number
+  fired_at: string
+  resolved_at?: string
+  state: 'firing' | 'resolved'
 }
 
 export interface SnapshotResponse {

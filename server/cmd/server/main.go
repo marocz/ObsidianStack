@@ -26,6 +26,7 @@ import (
 
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to config file")
+	uiDir := flag.String("ui-dir", "", "serve the React UI static files from this directory (e.g. ui/dist); leave empty to disable")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -87,6 +88,23 @@ func main() {
 	httpMux := http.NewServeMux()
 	httpMux.Handle("/api/", api.New(st, alertEngine))
 	httpMux.Handle("/ws/stream", hub)
+
+	// Optional: serve the pre-built React UI from a local directory.
+	// Usage:  ./bin/obsidianstack-server -config config/server.yaml -ui-dir ui/dist
+	// The "/" catch-all serves index.html for any unknown path (SPA routing).
+	if *uiDir != "" {
+		fs := http.FileServer(http.Dir(*uiDir))
+		httpMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			// SPA fallback: if the requested file doesn't exist, serve index.html.
+			path := *uiDir + r.URL.Path
+			if _, err := os.Stat(path); os.IsNotExist(err) {
+				http.ServeFile(w, r, *uiDir+"/index.html")
+				return
+			}
+			fs.ServeHTTP(w, r)
+		})
+		slog.Info("serving UI static files", "dir", *uiDir)
+	}
 
 	httpSrv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Server.HTTPPort),
