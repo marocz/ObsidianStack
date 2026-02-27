@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"log/slog"
 	"sync"
 	"time"
 
@@ -53,6 +52,9 @@ func (s *Store) Get(sourceID string) (*Entry, bool) {
 	e, ok := s.data[sourceID]
 	return e, ok
 }
+
+// TTL returns the configured time-to-live for snapshot entries.
+func (s *Store) TTL() time.Duration { return s.ttl }
 
 // List returns a snapshot of all entries whose UpdatedAt is within the TTL.
 // Stale entries that have not yet been evicted are excluded.
@@ -108,9 +110,7 @@ func (s *Store) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case now := <-t.C:
-			if n := s.Evict(now); n > 0 {
-				slog.Debug("store: evicted stale snapshots", "count", n)
-			}
+			s.Evict(now)
 		}
 	}
 }

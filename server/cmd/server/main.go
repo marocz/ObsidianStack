@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,6 +14,7 @@ import (
 	"google.golang.org/grpc"
 
 	pb "github.com/obsidianstack/obsidianstack/gen/obsidian/v1"
+	"github.com/obsidianstack/obsidianstack/server/internal/api"
 	"github.com/obsidianstack/obsidianstack/server/internal/auth"
 	"github.com/obsidianstack/obsidianstack/server/internal/config"
 	"github.com/obsidianstack/obsidianstack/server/internal/receiver"
@@ -71,10 +73,22 @@ func main() {
 		}
 	}()
 
-	// TODO(T009): start REST API on cfg.Server.HTTPPort
-	// TODO(T010): start WebSocket hub
+	// REST API on HTTPPort.
+	httpSrv := &http.Server{
+		Addr:    fmt.Sprintf(":%d", cfg.Server.HTTPPort),
+		Handler: api.New(st),
+	}
+	go func() {
+		slog.Info("REST API listening", "port", cfg.Server.HTTPPort)
+		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("HTTP server stopped", "err", err)
+		}
+	}()
+
+	// TODO(T010): start WebSocket hub on /ws/stream
 
 	<-ctx.Done()
 	slog.Info("obsidianstack-server shutting down")
 	grpcSrv.GracefulStop()
+	httpSrv.Shutdown(context.Background()) //nolint:errcheck
 }
