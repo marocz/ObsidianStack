@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	pb "github.com/obsidianstack/obsidianstack/gen/obsidian/v1"
+	"github.com/obsidianstack/obsidianstack/server/internal/alerts"
 	"github.com/obsidianstack/obsidianstack/server/internal/store"
 )
 
@@ -15,12 +16,14 @@ import (
 // It validates each incoming PipelineSnapshot and stores it in the state store.
 type Receiver struct {
 	pb.UnimplementedSnapshotServiceServer
-	store *store.Store
+	store  *store.Store
+	engine *alerts.Engine
 }
 
-// New creates a Receiver that writes accepted snapshots to st.
-func New(st *store.Store) *Receiver {
-	return &Receiver{store: st}
+// New creates a Receiver that writes accepted snapshots to st and evaluates
+// alert rules via engine on each snapshot.
+func New(st *store.Store, engine *alerts.Engine) *Receiver {
+	return &Receiver{store: st, engine: engine}
 }
 
 // SendSnapshot is the unary RPC handler called by obsidianstack-agent instances.
@@ -32,6 +35,7 @@ func (r *Receiver) SendSnapshot(ctx context.Context, snap *pb.PipelineSnapshot) 
 	}
 
 	r.store.Put(snap)
+	r.engine.Evaluate(snap)
 
 	slog.Debug("receiver: snapshot stored",
 		"source_id", snap.SourceId,

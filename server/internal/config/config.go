@@ -8,6 +8,46 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// AlertsConfig holds alerting rules and webhook delivery targets.
+type AlertsConfig struct {
+	Rules    []AlertRule     `yaml:"rules"`
+	Webhooks []WebhookConfig `yaml:"webhooks"`
+}
+
+// AlertRule defines one threshold-based alert condition.
+type AlertRule struct {
+	// Name is the human-readable alert identifier, used as the deduplication key.
+	Name string `yaml:"name"`
+
+	// Condition is a simple expression: "drop_pct > 10", "strength_score < 60",
+	// "cert_days_left < 14", "state == critical".
+	Condition string `yaml:"condition"`
+
+	// Severity is one of: critical | warning | info.
+	Severity string `yaml:"severity"`
+
+	// Cooldown suppresses re-fires for this duration after an alert fires.
+	// Defaults to 15 minutes if zero.
+	Cooldown time.Duration `yaml:"cooldown"`
+}
+
+// WebhookConfig defines one webhook delivery target.
+type WebhookConfig struct {
+	// Type is one of: teams | slack | pagerduty | http.
+	Type string `yaml:"type"`
+
+	// URLEnv is the name of the environment variable that holds the webhook URL.
+	URLEnv string `yaml:"url_env"`
+}
+
+// URL returns the webhook URL resolved from the environment.
+func (w WebhookConfig) URL() string {
+	if w.URLEnv == "" {
+		return ""
+	}
+	return os.Getenv(w.URLEnv)
+}
+
 // Default values for the server configuration.
 const (
 	DefaultGRPCPort    = 50051
@@ -34,6 +74,9 @@ type ServerConfig struct {
 
 	// Snapshot controls in-memory snapshot retention.
 	Snapshot SnapshotConfig `yaml:"snapshot"`
+
+	// Alerts holds rule definitions and webhook delivery targets.
+	Alerts AlertsConfig `yaml:"alerts"`
 }
 
 // AuthConfig controls client authentication on the server side.
