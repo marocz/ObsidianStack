@@ -67,7 +67,7 @@ type Source struct {
 
 // AuthConfig specifies the authentication mode for a source.
 type AuthConfig struct {
-	// Mode is one of: mtls | apikey | bearer | none.
+	// Mode is one of: mtls | apikey | bearer | basic | none.
 	Mode string `yaml:"mode"`
 
 	// mTLS fields — used when Mode == "mtls".
@@ -84,6 +84,12 @@ type AuthConfig struct {
 	// Bearer token fields — used when Mode == "bearer".
 	// TokenEnv is the name of the environment variable that holds the token.
 	TokenEnv string `yaml:"token_env"`
+
+	// Basic auth fields — used when Mode == "basic".
+	// Username is the literal username (safe to store in config).
+	Username string `yaml:"username"`
+	// PasswordEnv is the name of the environment variable that holds the password.
+	PasswordEnv string `yaml:"password_env"`
 }
 
 // Key returns the API key value resolved from the environment.
@@ -101,6 +107,14 @@ func (a AuthConfig) Token() string {
 		return ""
 	}
 	return os.Getenv(a.TokenEnv)
+}
+
+// Password returns the basic-auth password resolved from the environment.
+func (a AuthConfig) Password() string {
+	if a.PasswordEnv == "" {
+		return ""
+	}
+	return os.Getenv(a.PasswordEnv)
 }
 
 // TLSConfig holds per-source TLS dial options.
@@ -257,7 +271,7 @@ func validate(cfg *Config) error {
 			return fmt.Errorf("sources[%d] %q: unknown type %q", i, src.ID, src.Type)
 		}
 		switch src.Auth.Mode {
-		case "mtls", "apikey", "bearer", "none", "":
+		case "mtls", "apikey", "bearer", "basic", "none", "":
 		default:
 			return fmt.Errorf("sources[%d] %q: unknown auth mode %q", i, src.ID, src.Auth.Mode)
 		}
