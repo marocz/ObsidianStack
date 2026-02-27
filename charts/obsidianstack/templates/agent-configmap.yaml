@@ -8,4 +8,5 @@ metadata:
     app.kubernetes.io/component: agent
 data:
   agent.yaml: |
-    {{- .Values.agent.config | nindent 4 }}
+    agent:
+    {{- .Values.agent.config | nindent 6 }}
