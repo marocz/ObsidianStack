@@ -1,0 +1,152 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# ObsidianStack — cluster-specific Helm values
+# Target cluster: docvantage_staging (EKS us-east-2)
+#
+# Usage:
+#   helm upgrade --install obsidianstack charts/obsidianstack \
+#     --namespace obsidianstack \
+#     --create-namespace \
+#     --values deploy/cluster/values.yaml
+# ──────────────────────────────────────────────────────────────────────────────
+
+namespace:
+  create: false   # namespace already exists in cluster
+  name: obsidianstack
+
+# ── Agent ─────────────────────────────────────────────────────────────────────
+
+agent:
+  image:
+    repository: marocz/obsidianstack-agent
+    tag: "latest"
+    pullPolicy: Always
+
+  replicaCount: 1
+
+  config: |
+    server_endpoint: "obsidianstack-server:50051"
+    scrape_interval: 15s
+
+    sources:
+      # Prometheus — in-cluster service, no auth required.
+      # Service port 443 maps to pod port 9090 (plain HTTP — not TLS).
+      - id: "prometheus-staging"
+        type: prometheus
+        endpoint: "http://prometheus-server.monitoring:443/metrics"
+
+      # Loki — in-cluster service
+      - id: "loki-staging"
+        type: loki
+        endpoint: "http://loki.loki:3100/metrics"
+
+      # OTel Collector — internal telemetry metrics
+      - id: "otel-collector"
+        type: otelcol
+        endpoint: "http://otel-collector.monitoring:8888/metrics"
+
+  # No secrets needed for in-cluster scraping (no basic auth on internal services)
+  secrets: {}
+
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# ── Server ────────────────────────────────────────────────────────────────────
+
+server:
+  image:
+    repository: marocz/obsidianstack-server
+    tag: "latest"
+    pullPolicy: Always
+
+  replicaCount: 1
+
+  config: |
+    grpc_port: 50051
+    http_port: 8080
+    snapshot_ttl: 5m
+    auth:
+      mode: none
+    alerts:
+      rules:
+        - name: "high-drop-rate"
+          condition: "drop_pct > 5"
+          severity: "critical"
+          cooldown: 15m
+        - name: "source-unreachable"
+          condition: "state == unknown"
+          severity: "warning"
+          cooldown: 5m
+        - name: "low-uptime"
+          condition: "uptime_pct < 90"
+          severity: "warning"
+          cooldown: 30m
+      webhooks: []
+      # Add a Slack webhook when ready:
+      # - url: "https://hooks.slack.com/services/..."
+      #   type: slack
+
+  secrets: {}
+  # SLACK_WEBHOOK_URL: "https://hooks.slack.com/services/..."
+
+  service:
+    type: ClusterIP
+    httpPort: 8080
+    grpcPort: 50051
+    annotations: {}
+
+  # Expose the server REST API via nginx ingress (optional — UI proxies /api/)
+  ingress:
+    enabled: false
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# ── UI ────────────────────────────────────────────────────────────────────────
+
+ui:
+  enabled: true
+
+  image:
+    repository: marocz/obsidianstack-ui
+    tag: "latest"
+    pullPolicy: Always
+
+  replicaCount: 1
+
+  # nginx proxies /api/ and /ws to this address
+  serverUrl: "http://obsidianstack-server:8080"
+
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+
+  ingress:
+    enabled: true
+    className: "nginx"
+    host: "obs.vechtron.com"
+    tls: false
+    tlsSecretName: ""
+    annotations:
+      # Long timeouts for WebSocket connections (/ws/stream)
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      # nginx ingress handles WebSocket Upgrade headers natively
+
+  resources:
+    requests:
+      cpu: 20m
+      memory: 16Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

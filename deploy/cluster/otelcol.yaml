@@ -1,0 +1,226 @@
+# OpenTelemetry Collector deployment for the Kubernetes cluster.
+#
+# Deploys into the existing `monitoring` namespace alongside Prometheus.
+# Receives OTLP signals from instrumented apps → exports metrics to Prometheus
+# via remote-write and logs to Loki.
+#
+# Prerequisites:
+#   - Prometheus must be started with --web.enable-remote-write-receiver
+#     (add to your kube-prometheus-stack values under additionalArgs)
+#   - Loki must be reachable at http://loki.loki:3100
+#
+# Apply:
+#   kubectl apply -f deploy/cluster/otelcol.yaml
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: obsidianstack
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: obsidianstack
+data:
+  config.yaml: |
+    # ── Extensions ─────────────────────────────────────────────────────────────
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    # ── Receivers ──────────────────────────────────────────────────────────────
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    # ── Processors ─────────────────────────────────────────────────────────────
+    processors:
+      memory_limiter:
+        limit_mib: 400
+        spike_limit_mib: 100
+        check_interval: 5s
+
+      batch:
+        timeout: 5s
+        send_batch_size: 1000
+
+    # ── Exporters ──────────────────────────────────────────────────────────────
+    exporters:
+      # Metrics → Prometheus remote-write
+      prometheusremotewrite:
+        endpoint: "http://prometheus-server.monitoring:9090/api/v1/write"
+        tls:
+          insecure: true
+        resource_to_telemetry_conversion:
+          enabled: true
+
+      # Logs → Loki via native OTLP endpoint (Loki 2.9+)
+      otlphttp/loki:
+        endpoint: "http://loki.loki:3100/otlp"
+        tls:
+          insecure: true
+
+      # Traces → debug logging until a tracing backend is available
+      debug:
+        verbosity: basic
+        sampling_initial: 5
+        sampling_thereafter: 200
+
+    # ── Service ────────────────────────────────────────────────────────────────
+    service:
+      extensions: [health_check]
+
+      # Internal collector telemetry — ObsidianStack agent scrapes :8888/metrics
+      telemetry:
+        logs:
+          level: info
+        metrics:
+          level: detailed
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: "0.0.0.0"
+                    port: 8888
+
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheusremotewrite]
+
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp/loki]
+
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [debug]
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: obsidianstack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otel-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otel-collector
+        app.kubernetes.io/part-of: obsidianstack
+      annotations:
+        # Force pod restart on ConfigMap change (checksum approach)
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8888"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: otel-collector
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.146.1
+          args:
+            - "--config=/etc/otelcol/config.yaml"
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: metrics
+              containerPort: 8888
+              protocol: TCP
+            - name: health
+              containerPort: 13133
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: obsidianstack
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: otel-collector
+  ports:
+    # OTLP gRPC — apps send traces/metrics/logs here
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+      protocol: TCP
+    # OTLP HTTP — apps send via HTTP here
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+      protocol: TCP
+    # Internal collector metrics — ObsidianStack scrapes this
+    - name: metrics
+      port: 8888
+      targetPort: metrics
+      protocol: TCP
+    # Health check
+    - name: health
+      port: 13133
+      targetPort: health
+      protocol: TCP
