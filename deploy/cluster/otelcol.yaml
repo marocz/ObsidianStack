@@ -1,4 +1,4 @@
-# OpenTelemetry Collector deployment for the docvantage_staging EKS cluster.
+# OpenTelemetry Collector deployment for the Kubernetes cluster.
 #
 # Deploys into the existing `monitoring` namespace alongside Prometheus.
 # Receives OTLP signals from instrumented apps → exports metrics to Prometheus
