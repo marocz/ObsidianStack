@@ -9,20 +9,20 @@ import (
 // toProto converts a compute.Result into a PipelineSnapshot protobuf message
 // ready to be sent over gRPC to obsidianstack-server.
 //
-// Fields not yet populated by Phase 1 (node_type, cluster, namespace,
-// latency percentiles, certs) are left at their zero values and will
-// be filled in by later tasks (T011 adds cert data, K8s metadata via labels).
-func toProto(r *compute.Result) *pb.PipelineSnapshot {
+// certs contains TLS certificate status records produced by the security
+// checker (one per HTTPS endpoint); it may be nil for plain-HTTP sources.
+func toProto(r *compute.Result, certs []*pb.CertStatus) *pb.PipelineSnapshot {
 	snap := &pb.PipelineSnapshot{
-		SourceId:        r.SourceID,
-		SourceType:      r.SourceType,
-		TimestampUnix:   r.Timestamp.Unix(),
-		State:           r.State,
-		DropPct:         r.DropPct,
-		RecoveryRate:    r.RecoveryRate,
+		SourceId:         r.SourceID,
+		SourceType:       r.SourceType,
+		TimestampUnix:    r.Timestamp.Unix(),
+		State:            r.State,
+		DropPct:          r.DropPct,
+		RecoveryRate:     r.RecoveryRate,
 		ThroughputPerMin: r.ThroughputPM,
-		StrengthScore:   r.StrengthScore,
-		UptimePct:       r.UptimePct,
+		StrengthScore:    r.StrengthScore,
+		UptimePct:        r.UptimePct,
+		Certs:            certs,
 	}
 
 	if r.State == compute.StateUnknown && r.DropPct == 0 {
