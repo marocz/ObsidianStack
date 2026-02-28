@@ -42,6 +42,11 @@ agent:
         type: otelcol
         endpoint: "http://otel-collector.monitoring:8888/metrics"
 
+      # Fluent Bit — test instance
+      - id: "fluent-bit"
+        type: fluentbit
+        endpoint: "http://fluent-bit-test.monitoring:2020"
+
   # No secrets needed for in-cluster scraping (no basic auth on internal services)
   secrets: {}
 
