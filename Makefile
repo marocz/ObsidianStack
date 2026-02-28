@@ -14,7 +14,9 @@ DEV_SERVER_CFG := config/server.yaml
 
 .PHONY: all build build-agent build-server proto lint test tidy clean \
         run-server run-agent run-ui run-portfwd stop \
-        docker-agent docker-server up down help
+        docker-agent docker-server docker-ui docker-build docker-push \
+        helm-lint helm-template helm-install helm-upgrade-cluster \
+        rollout-restart release up down help
 
 all: build ## Default: build both binaries
 
@@ -77,38 +79,84 @@ tidy: ## Update go.sum
 	$(GOBIN) mod tidy
 
 ## ── Docker ──────────────────────────────────────────────────────────────────
-
+##
+## Workflow for releasing a new version:
+##
+##   1. Build and test locally:
+##        make docker-build VERSION=v0.1.1
+##        docker compose up  (or use make helm-upgrade-cluster to test in-cluster)
+##
+##   2. When happy, push to Docker Hub:
+##        make docker-push VERSION=v0.1.1 DOCKER_USER=marocz
+##
+##   3. Update tag in deploy/cluster/values.yaml, then push branch and open PR:
+##        git push origin HEAD
+##        gh pr create
+##
+##   4. After PR is merged to main, tag the release — CI builds official
+##      multi-arch images (amd64 + arm64) and creates a GitHub Release:
+##        git checkout main && git pull
+##        git tag v0.1.1 && git push origin v0.1.1
+##
 # Override on the command line:  make docker-push DOCKER_USER=yourname VERSION=v0.1.0
-DOCKER_USER ?= obsidianstack
+DOCKER_USER ?= marocz
 VERSION     ?= dev
 
 clean: ## Remove build artifacts
 	rm -rf $(BIN)
 
-docker-agent: ## Build agent Docker image (local, single-arch)
+docker-agent: ## Build agent image locally (single-arch, fast)
 	docker build -f agent/Dockerfile -t $(DOCKER_USER)/obsidianstack-agent:$(VERSION) .
 
-docker-server: ## Build server Docker image (local, single-arch)
+docker-server: ## Build server image locally (single-arch, fast)
 	docker build -f server/Dockerfile -t $(DOCKER_USER)/obsidianstack-server:$(VERSION) .
 
-docker-build: docker-agent docker-server ## Build both images locally
+docker-ui: ## Build UI image locally (single-arch, fast)
+	docker build -f ui/Dockerfile -t $(DOCKER_USER)/obsidianstack-ui:$(VERSION) ./ui
 
-docker-push: ## Build multi-arch + push to Docker Hub (requires: docker login)
+docker-build: docker-agent docker-server docker-ui ## Build all three images locally (single-arch)
+	@echo ""
+	@echo "Images built:"
+	@echo "  $(DOCKER_USER)/obsidianstack-agent:$(VERSION)"
+	@echo "  $(DOCKER_USER)/obsidianstack-server:$(VERSION)"
+	@echo "  $(DOCKER_USER)/obsidianstack-ui:$(VERSION)"
+	@echo ""
+	@echo "Next: test locally, then push with: make docker-push VERSION=$(VERSION)"
+
+docker-push: ## Build multi-arch + push all three images to Docker Hub (requires: docker login)
+	@if [ "$(VERSION)" = "dev" ]; then \
+	  echo "ERROR: set a real version — e.g.  make docker-push VERSION=v0.1.0"; exit 1; \
+	fi
 	docker buildx build --platform linux/amd64,linux/arm64 \
 	  -f agent/Dockerfile \
 	  -t $(DOCKER_USER)/obsidianstack-agent:$(VERSION) \
-	  -t $(DOCKER_USER)/obsidianstack-agent:latest \
 	  --push .
 	docker buildx build --platform linux/amd64,linux/arm64 \
 	  -f server/Dockerfile \
 	  -t $(DOCKER_USER)/obsidianstack-server:$(VERSION) \
-	  -t $(DOCKER_USER)/obsidianstack-server:latest \
 	  --push .
 	docker buildx build --platform linux/amd64,linux/arm64 \
 	  -f ui/Dockerfile \
 	  -t $(DOCKER_USER)/obsidianstack-ui:$(VERSION) \
-	  -t $(DOCKER_USER)/obsidianstack-ui:latest \
 	  --push ./ui
+	@echo ""
+	@echo "Pushed $(VERSION) to Docker Hub."
+	@echo "Update deploy/cluster/values.yaml image tags, then open a PR."
+
+release: test docker-build ## Run all tests then build images — confirms everything is green before pushing
+	@echo ""
+	@echo "All tests passed and images built for VERSION=$(VERSION)."
+	@echo ""
+	@echo "Release checklist:"
+	@echo "  1. Push images to Docker Hub:"
+	@echo "       make docker-push VERSION=$(VERSION)"
+	@echo "  2. Update image tags in deploy/cluster/values.yaml"
+	@echo "  3. Deploy to cluster and verify:"
+	@echo "       make helm-upgrade-cluster"
+	@echo "       make rollout-restart"
+	@echo "  4. Commit + push feature branch, open PR, merge to main"
+	@echo "  5. Tag to trigger official CI release:"
+	@echo "       git tag $(VERSION) && git push origin $(VERSION)"
 
 up: ## Start full stack with docker-compose
 	docker compose up --build
@@ -118,21 +166,39 @@ down: ## Stop docker-compose stack
 
 ## ── Helm ────────────────────────────────────────────────────────────────────
 
-HELM_RELEASE ?= obsidianstack
-HELM_NS      ?= obsidianstack
-HELM_CHART   := charts/obsidianstack
+HELM_RELEASE        ?= obsidianstack
+HELM_NS             ?= obsidianstack
+HELM_CHART          := charts/obsidianstack
+HELM_CLUSTER_VALUES ?= deploy/cluster/values.yaml
 
 helm-lint: ## Lint the Helm chart
 	helm lint $(HELM_CHART)
 
-helm-template: ## Render Helm templates (dry-run)
+helm-template: ## Render Helm templates (dry-run, default values)
 	helm template $(HELM_RELEASE) $(HELM_CHART) --namespace $(HELM_NS)
 
-helm-install: ## Install / upgrade the chart in your current k8s context
+helm-template-cluster: ## Render Helm templates with cluster values (dry-run)
+	helm template $(HELM_RELEASE) $(HELM_CHART) \
+	  --namespace $(HELM_NS) \
+	  --values $(HELM_CLUSTER_VALUES)
+
+helm-install: ## Install / upgrade the chart with default values
 	helm upgrade --install $(HELM_RELEASE) $(HELM_CHART) \
 	  --namespace $(HELM_NS) \
 	  --create-namespace \
 	  --values $(HELM_CHART)/values.yaml
+
+helm-upgrade-cluster: ## Deploy to your current k8s context using deploy/cluster/values.yaml (+ values.local.yaml if present)
+	helm upgrade --install $(HELM_RELEASE) $(HELM_CHART) \
+	  --namespace $(HELM_NS) \
+	  --create-namespace \
+	  --values $(HELM_CLUSTER_VALUES) \
+	  $(shell test -f deploy/cluster/values.local.yaml && echo "--values deploy/cluster/values.local.yaml")
+
+rollout-restart: ## Restart all ObsidianStack pods to pick up new images
+	kubectl rollout restart deployment -n $(HELM_NS)
+	@echo "Waiting for rollout..."
+	kubectl rollout status deployment -n $(HELM_NS) --timeout=120s
 
 helm-uninstall: ## Uninstall the release
 	helm uninstall $(HELM_RELEASE) --namespace $(HELM_NS)
