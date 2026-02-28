@@ -1,6 +1,6 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # ObsidianStack — cluster-specific Helm values
-# Target cluster: docvantage_staging (EKS us-east-2)
+# Target cluster:  Kubernetes
 #
 # Usage:
 #   helm upgrade --install obsidianstack charts/obsidianstack \
