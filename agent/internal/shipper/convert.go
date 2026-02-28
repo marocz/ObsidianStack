@@ -23,6 +23,7 @@ func toProto(r *compute.Result, certs []*pb.CertStatus) *pb.PipelineSnapshot {
 		StrengthScore:    r.StrengthScore,
 		UptimePct:        r.UptimePct,
 		ErrorMessage:     r.ErrorMessage,
+		Extra:            r.Extra,
 		Certs:            certs,
 	}
 

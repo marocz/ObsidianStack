@@ -34,10 +34,10 @@ func TestCompute_States(t *testing.T) {
 		},
 		{
 			name: "degraded — score lands between 60 and 84",
-			// drop=5% → drop_factor=0.95; rec=80; up=90; no latency
-			// score = (0.95*0.4 + 1.0*0.3 + 0.80*0.2 + 0.90*0.1) * 100
-			//       = (0.38 + 0.30 + 0.16 + 0.09) * 100 = 83.0
-			in:        Input{DropPct: 5, RecoveryRate: 80, UptimePct: 90},
+			// drop=20% → drop_factor=0.80; rec=65; up=80; no latency
+			// score = (0.80*0.4 + 1.0*0.3 + 0.65*0.2 + 0.80*0.1) * 100
+			//       = (0.32 + 0.30 + 0.13 + 0.08) * 100 = 83.0
+			in:        Input{DropPct: 20, RecoveryRate: 65, UptimePct: 80},
 			wantState: StateDegraded,
 			wantScore: 83,
 		},
