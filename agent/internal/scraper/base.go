@@ -62,6 +62,8 @@ func New(src config.Source) (Scraper, error) {
 		return &promScraper{src: src, client: client}, nil
 	case "loki":
 		return &lokiScraper{src: src, client: client}, nil
+	case "fluentbit":
+		return &fluentbitScraper{src: src, client: client}, nil
 	default:
 		return nil, fmt.Errorf("scraper: unsupported type %q", src.Type)
 	}
