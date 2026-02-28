@@ -1,25 +1,42 @@
 agent:
-  server_endpoint: "localhost:50051"   # or the server's IP/hostname if on a separate host
+  server_endpoint: "localhost:50051"   # IP/hostname of the obsidianstack-server
   server_auth:
-    mode: none
+    mode: none                         # set to apikey in production
 
   scrape_interval: 15s
-  ship_interval: 15s
-  buffer_size: 1000
+  ship_interval:   15s
+  buffer_size:     1000
 
   sources:
+    # --- Prometheus ---
     - id: "prometheus-prod"
       type: prometheus
-      endpoint: "https://prom-staging.vechtron.com/metrics"
-      auth:
-        mode: basic
-        username: "admin"
-        password_env: PROM_PASSWORD     # resolved from /etc/obsidianstack/agent.env
-      tls:
-        insecure_skip_verify: true
-
-    - id: "loki-prod"
-      type: loki
-      endpoint: "http://loki.internal:3100/metrics"
+      endpoint: "http://prometheus:9090/metrics"
       auth:
         mode: none
+      # For remote Prometheus with basic auth:
+      # auth:
+      #   mode: basic
+      #   username: "admin"
+      #   password_env: PROM_PASSWORD    # set in agent.env
+
+    # --- Loki ---
+    - id: "loki-prod"
+      type: loki
+      endpoint: "http://loki:3100/metrics"
+      auth:
+        mode: none
+
+    # --- OTel Collector ---
+    # - id: "otel-collector"
+    #   type: otelcol
+    #   endpoint: "http://otelcol:8888/metrics"
+    #   auth:
+    #     mode: none
+
+    # --- Fluent Bit ---
+    # - id: "fluent-bit"
+    #   type: fluentbit
+    #   endpoint: "http://fluent-bit:2020"
+    #   auth:
+    #     mode: none
