@@ -48,11 +48,11 @@ func (s *otelScraper) Scrape(ctx context.Context) (*ScrapeResult, error) {
 	}
 
 	for suffix, signal := range otelSuffixes {
-		accepted := sumFamily(mfs[otelReceiverAccepted+"_"+suffix])
-		refused := sumFamily(mfs[otelReceiverRefused+"_"+suffix])
-		sent := sumFamily(mfs[otelExporterSent+"_"+suffix])
-		failed := sumFamily(mfs[otelExporterFailed+"_"+suffix])
-		procDropped := sumFamily(mfs[otelProcessorDropped+"_"+suffix])
+		accepted := sumFamily(mfs[otelReceiverAccepted+"_"+suffix+"_total"])
+		refused := sumFamily(mfs[otelReceiverRefused+"_"+suffix+"_total"])
+		sent := sumFamily(mfs[otelExporterSent+"_"+suffix+"_total"])
+		failed := sumFamily(mfs[otelExporterFailed+"_"+suffix+"_total"])
+		procDropped := sumFamily(mfs[otelProcessorDropped+"_"+suffix+"_total"])
 
 		res.Received[signal] += accepted
 
