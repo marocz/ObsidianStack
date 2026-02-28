@@ -8,7 +8,9 @@ import (
 	"time"
 
 	pb "github.com/obsidianstack/obsidianstack/gen/obsidian/v1"
+	"github.com/obsidianstack/obsidianstack/server/internal/alerts"
 	"github.com/obsidianstack/obsidianstack/server/internal/api"
+	svrconfig "github.com/obsidianstack/obsidianstack/server/internal/config"
 	"github.com/obsidianstack/obsidianstack/server/internal/store"
 )
 
@@ -61,7 +63,7 @@ func decode(t *testing.T, rr *httptest.ResponseRecorder, v interface{}) {
 // --- /api/v1/health ---------------------------------------------------------
 
 func TestHealth_EmptyStore(t *testing.T) {
-	h := api.New(newStore())
+	h := api.New(newStore(), alerts.New(svrconfig.AlertsConfig{}))
 	rr := get(t, h, "/api/v1/health")
 
 	if rr.Code != http.StatusOK {
@@ -79,7 +81,7 @@ func TestHealth_EmptyStore(t *testing.T) {
 }
 
 func TestHealth_HealthyPipeline(t *testing.T) {
-	h := api.New(newStore(snap("otel", "healthy", 92.0)))
+	h := api.New(newStore(snap("otel", "healthy", 92.0)), alerts.New(svrconfig.AlertsConfig{}))
 	rr := get(t, h, "/api/v1/health")
 
 	if rr.Code != http.StatusOK {
@@ -107,7 +109,7 @@ func TestHealth_MixedStates(t *testing.T) {
 		snap("a", "healthy", 90.0),
 		snap("b", "degraded", 70.0),
 		snap("c", "critical", 40.0),
-	))
+	), alerts.New(svrconfig.AlertsConfig{}))
 	rr := get(t, h, "/api/v1/health")
 	var resp map[string]interface{}
 	decode(t, rr, &resp)
@@ -128,7 +130,7 @@ func TestHealth_MixedStates(t *testing.T) {
 }
 
 func TestHealth_MethodNotAllowed(t *testing.T) {
-	h := api.New(newStore())
+	h := api.New(newStore(), alerts.New(svrconfig.AlertsConfig{}))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/api/v1/health", nil))
 	if rr.Code != http.StatusMethodNotAllowed {
@@ -139,7 +141,7 @@ func TestHealth_MethodNotAllowed(t *testing.T) {
 // --- /api/v1/pipelines ------------------------------------------------------
 
 func TestListPipelines_Empty(t *testing.T) {
-	h := api.New(newStore())
+	h := api.New(newStore(), alerts.New(svrconfig.AlertsConfig{}))
 	rr := get(t, h, "/api/v1/pipelines")
 
 	if rr.Code != http.StatusOK {
@@ -157,7 +159,7 @@ func TestListPipelines_Multiple(t *testing.T) {
 		snap("otel", "healthy", 92.0),
 		snap("prom", "degraded", 70.0),
 		snap("loki", "critical", 40.0),
-	))
+	), alerts.New(svrconfig.AlertsConfig{}))
 	rr := get(t, h, "/api/v1/pipelines")
 
 	if rr.Code != http.StatusOK {
@@ -171,7 +173,7 @@ func TestListPipelines_Multiple(t *testing.T) {
 }
 
 func TestListPipelines_FieldsPresent(t *testing.T) {
-	h := api.New(newStore(snap("otel", "healthy", 92.5)))
+	h := api.New(newStore(snap("otel", "healthy", 92.5)), alerts.New(svrconfig.AlertsConfig{}))
 	rr := get(t, h, "/api/v1/pipelines")
 	var resp []map[string]interface{}
 	decode(t, rr, &resp)
@@ -192,7 +194,7 @@ func TestListPipelines_FieldsPresent(t *testing.T) {
 }
 
 func TestListPipelines_MethodNotAllowed(t *testing.T) {
-	h := api.New(newStore())
+	h := api.New(newStore(), alerts.New(svrconfig.AlertsConfig{}))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, httptest.NewRequest(http.MethodDelete, "/api/v1/pipelines", nil))
 	if rr.Code != http.StatusMethodNotAllowed {
@@ -203,7 +205,7 @@ func TestListPipelines_MethodNotAllowed(t *testing.T) {
 // --- /api/v1/pipelines/{id} -------------------------------------------------
 
 func TestGetPipeline_Found(t *testing.T) {
-	h := api.New(newStore(snap("otel-prod", "healthy", 88.0)))
+	h := api.New(newStore(snap("otel-prod", "healthy", 88.0)), alerts.New(svrconfig.AlertsConfig{}))
 	rr := get(t, h, "/api/v1/pipelines/otel-prod")
 
 	if rr.Code != http.StatusOK {
@@ -220,7 +222,7 @@ func TestGetPipeline_Found(t *testing.T) {
 }
 
 func TestGetPipeline_NotFound(t *testing.T) {
-	h := api.New(newStore())
+	h := api.New(newStore(), alerts.New(svrconfig.AlertsConfig{}))
 	rr := get(t, h, "/api/v1/pipelines/does-not-exist")
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("status: got %d, want 404", rr.Code)
@@ -228,7 +230,7 @@ func TestGetPipeline_NotFound(t *testing.T) {
 }
 
 func TestGetPipeline_MethodNotAllowed(t *testing.T) {
-	h := api.New(newStore(snap("src", "healthy", 90.0)))
+	h := api.New(newStore(snap("src", "healthy", 90.0)), alerts.New(svrconfig.AlertsConfig{}))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPut, "/api/v1/pipelines/src", nil))
 	if rr.Code != http.StatusMethodNotAllowed {
@@ -239,7 +241,7 @@ func TestGetPipeline_MethodNotAllowed(t *testing.T) {
 // --- /api/v1/signals --------------------------------------------------------
 
 func TestSignals_NoData(t *testing.T) {
-	h := api.New(newStore())
+	h := api.New(newStore(), alerts.New(svrconfig.AlertsConfig{}))
 	rr := get(t, h, "/api/v1/signals")
 
 	if rr.Code != http.StatusOK {
@@ -265,7 +267,7 @@ func TestSignals_Aggregation(t *testing.T) {
 			{Type: "metrics", ReceivedPm: 2000, DroppedPm: 100},
 			{Type: "traces", ReceivedPm: 300, DroppedPm: 0},
 		}),
-	))
+	), alerts.New(svrconfig.AlertsConfig{}))
 	rr := get(t, h, "/api/v1/signals")
 
 	if rr.Code != http.StatusOK {
@@ -299,7 +301,7 @@ func TestSignals_Aggregation(t *testing.T) {
 }
 
 func TestSignals_MethodNotAllowed(t *testing.T) {
-	h := api.New(newStore())
+	h := api.New(newStore(), alerts.New(svrconfig.AlertsConfig{}))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/api/v1/signals", nil))
 	if rr.Code != http.StatusMethodNotAllowed {
@@ -310,7 +312,7 @@ func TestSignals_MethodNotAllowed(t *testing.T) {
 // --- /api/v1/alerts ---------------------------------------------------------
 
 func TestAlerts_ReturnsEmptyArray(t *testing.T) {
-	h := api.New(newStore())
+	h := api.New(newStore(), alerts.New(svrconfig.AlertsConfig{}))
 	rr := get(t, h, "/api/v1/alerts")
 
 	if rr.Code != http.StatusOK {
@@ -329,7 +331,7 @@ func TestAlerts_ReturnsEmptyArray(t *testing.T) {
 // --- /api/v1/certs ----------------------------------------------------------
 
 func TestCerts_ReturnsEmptyArray_NoCerts(t *testing.T) {
-	h := api.New(newStore(snap("otel", "healthy", 90.0))) // snap has no certs
+	h := api.New(newStore(snap("otel", "healthy", 90.0)), alerts.New(svrconfig.AlertsConfig{})) // snap has no certs
 	rr := get(t, h, "/api/v1/certs")
 
 	if rr.Code != http.StatusOK {
@@ -349,7 +351,7 @@ func TestCerts_ReturnsCertData(t *testing.T) {
 			{Endpoint: "https://otel:4317", AuthType: "mtls", Status: "valid", DaysLeft: 45},
 		},
 	}
-	h := api.New(newStore(s))
+	h := api.New(newStore(s), alerts.New(svrconfig.AlertsConfig{}))
 	rr := get(t, h, "/api/v1/certs")
 
 	var resp []map[string]interface{}
@@ -368,7 +370,7 @@ func TestCerts_ReturnsCertData(t *testing.T) {
 // --- /api/v1/snapshot -------------------------------------------------------
 
 func TestSnapshot_Empty(t *testing.T) {
-	h := api.New(newStore())
+	h := api.New(newStore(), alerts.New(svrconfig.AlertsConfig{}))
 	rr := get(t, h, "/api/v1/snapshot")
 
 	if rr.Code != http.StatusOK {
@@ -389,7 +391,7 @@ func TestSnapshot_AllLivePipelines(t *testing.T) {
 	h := api.New(newStore(
 		snap("otel", "healthy", 90.0),
 		snap("prom", "degraded", 70.0),
-	))
+	), alerts.New(svrconfig.AlertsConfig{}))
 	rr := get(t, h, "/api/v1/snapshot")
 
 	var resp map[string]interface{}
@@ -401,7 +403,7 @@ func TestSnapshot_AllLivePipelines(t *testing.T) {
 }
 
 func TestSnapshot_MethodNotAllowed(t *testing.T) {
-	h := api.New(newStore())
+	h := api.New(newStore(), alerts.New(svrconfig.AlertsConfig{}))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPatch, "/api/v1/snapshot", nil))
 	if rr.Code != http.StatusMethodNotAllowed {
@@ -412,7 +414,7 @@ func TestSnapshot_MethodNotAllowed(t *testing.T) {
 // --- Content-Type -----------------------------------------------------------
 
 func TestContentTypeJSON(t *testing.T) {
-	h := api.New(newStore())
+	h := api.New(newStore(), alerts.New(svrconfig.AlertsConfig{}))
 	for _, path := range []string{
 		"/api/v1/health",
 		"/api/v1/pipelines",

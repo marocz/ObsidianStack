@@ -30,9 +30,13 @@ type PipelineResponse struct {
 	StrengthScore    float64          `json:"strength_score"`
 	UptimePct        float64          `json:"uptime_pct"`
 	ErrorMessage     string           `json:"error_message,omitempty"`
-	Signals          []SignalResponse  `json:"signals"`
-	Diagnostics      []DiagnosticHint `json:"diagnostics"`
-	LastSeen         string           `json:"last_seen"` // RFC3339
+	Signals          []SignalResponse   `json:"signals"`
+	Diagnostics      []DiagnosticHint  `json:"diagnostics"`
+	// Extra carries component-specific metrics. For otelcol: queue_size,
+	// queue_capacity, and per-minute rates for exporter_sent_*, receiver_refused_*,
+	// exporter_send_failed_*, processor_dropped_* (all with _pm suffix).
+	Extra            map[string]float64 `json:"extra,omitempty"`
+	LastSeen         string             `json:"last_seen"` // RFC3339
 }
 
 // SignalResponse is one signal type's stats within a pipeline.
