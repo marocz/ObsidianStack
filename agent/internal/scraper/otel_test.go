@@ -11,42 +11,42 @@ import (
 
 // otelMetrics is a realistic sample of OTel Collector internal metrics.
 const otelMetrics = `
-# HELP otelcol_receiver_accepted_spans Number of spans successfully pushed into the pipeline.
-# TYPE otelcol_receiver_accepted_spans counter
-otelcol_receiver_accepted_spans{receiver="otlp",transport="grpc"} 10000
-otelcol_receiver_accepted_spans{receiver="jaeger",transport="thrift"} 2000
+# HELP otelcol_receiver_accepted_spans_total Number of spans successfully pushed into the pipeline.
+# TYPE otelcol_receiver_accepted_spans_total counter
+otelcol_receiver_accepted_spans_total{receiver="otlp",transport="grpc"} 10000
+otelcol_receiver_accepted_spans_total{receiver="jaeger",transport="thrift"} 2000
 
-# HELP otelcol_receiver_refused_spans Number of spans that could not be pushed into the pipeline.
-# TYPE otelcol_receiver_refused_spans counter
-otelcol_receiver_refused_spans{receiver="otlp",transport="grpc"} 50
+# HELP otelcol_receiver_refused_spans_total Number of spans that could not be pushed into the pipeline.
+# TYPE otelcol_receiver_refused_spans_total counter
+otelcol_receiver_refused_spans_total{receiver="otlp",transport="grpc"} 50
 
-# HELP otelcol_exporter_sent_spans Number of spans successfully sent to destination.
-# TYPE otelcol_exporter_sent_spans counter
-otelcol_exporter_sent_spans{exporter="otlp"} 11800
+# HELP otelcol_exporter_sent_spans_total Number of spans successfully sent to destination.
+# TYPE otelcol_exporter_sent_spans_total counter
+otelcol_exporter_sent_spans_total{exporter="otlp"} 11800
 
-# HELP otelcol_exporter_send_failed_spans Number of spans that failed to be sent.
-# TYPE otelcol_exporter_send_failed_spans counter
-otelcol_exporter_send_failed_spans{exporter="otlp"} 150
+# HELP otelcol_exporter_send_failed_spans_total Number of spans that failed to be sent.
+# TYPE otelcol_exporter_send_failed_spans_total counter
+otelcol_exporter_send_failed_spans_total{exporter="otlp"} 150
 
-# HELP otelcol_processor_dropped_spans Number of spans that were dropped.
-# TYPE otelcol_processor_dropped_spans counter
-otelcol_processor_dropped_spans{processor="batch"} 25
+# HELP otelcol_processor_dropped_spans_total Number of spans that were dropped.
+# TYPE otelcol_processor_dropped_spans_total counter
+otelcol_processor_dropped_spans_total{processor="batch"} 25
 
-# HELP otelcol_receiver_accepted_metric_points Number of metric points successfully pushed.
-# TYPE otelcol_receiver_accepted_metric_points counter
-otelcol_receiver_accepted_metric_points{receiver="prometheus",transport="http"} 5000
+# HELP otelcol_receiver_accepted_metric_points_total Number of metric points successfully pushed.
+# TYPE otelcol_receiver_accepted_metric_points_total counter
+otelcol_receiver_accepted_metric_points_total{receiver="prometheus",transport="http"} 5000
 
-# HELP otelcol_exporter_send_failed_metric_points Number of metric points that failed.
-# TYPE otelcol_exporter_send_failed_metric_points counter
-otelcol_exporter_send_failed_metric_points{exporter="prometheusremotewrite"} 200
+# HELP otelcol_exporter_send_failed_metric_points_total Number of metric points that failed.
+# TYPE otelcol_exporter_send_failed_metric_points_total counter
+otelcol_exporter_send_failed_metric_points_total{exporter="prometheusremotewrite"} 200
 
-# HELP otelcol_receiver_accepted_log_records Number of log records successfully pushed.
-# TYPE otelcol_receiver_accepted_log_records counter
-otelcol_receiver_accepted_log_records{receiver="filelog"} 8000
+# HELP otelcol_receiver_accepted_log_records_total Number of log records successfully pushed.
+# TYPE otelcol_receiver_accepted_log_records_total counter
+otelcol_receiver_accepted_log_records_total{receiver="filelog"} 8000
 
-# HELP otelcol_exporter_send_failed_log_records Number of log records that failed.
-# TYPE otelcol_exporter_send_failed_log_records counter
-otelcol_exporter_send_failed_log_records{exporter="loki"} 80
+# HELP otelcol_exporter_send_failed_log_records_total Number of log records that failed.
+# TYPE otelcol_exporter_send_failed_log_records_total counter
+otelcol_exporter_send_failed_log_records_total{exporter="loki"} 80
 
 # HELP otelcol_exporter_queue_size Current size of the retry queue.
 # TYPE otelcol_exporter_queue_size gauge
@@ -116,9 +116,9 @@ func TestOTelScraper_Scrape(t *testing.T) {
 func TestOTelScraper_MultiLabel_Accumulation(t *testing.T) {
 	// Two receiver instances for traces — both should be summed.
 	body := `
-otelcol_receiver_accepted_spans{receiver="otlp"} 100
-otelcol_receiver_accepted_spans{receiver="jaeger"} 200
-otelcol_exporter_send_failed_spans{exporter="otlp"} 10
+otelcol_receiver_accepted_spans_total{receiver="otlp"} 100
+otelcol_receiver_accepted_spans_total{receiver="jaeger"} 200
+otelcol_exporter_send_failed_spans_total{exporter="otlp"} 10
 `
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(body))
