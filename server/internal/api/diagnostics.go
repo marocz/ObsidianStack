@@ -374,6 +374,100 @@ func sourceTypeHints(snap *pb.PipelineSnapshot) []DiagnosticHint {
 
 	case "otelcol":
 		hints = append(hints, otelcolHints(snap)...)
+
+	case "fluentbit":
+		hints = append(hints, fluentbitHints(snap)...)
+	}
+
+	return hints
+}
+
+// fluentbitHints generates Fluent Bit-specific diagnostic hints using the
+// Extra map (per-minute counter rates populated by the compute engine).
+func fluentbitHints(snap *pb.PipelineSnapshot) []DiagnosticHint {
+	ex := snap.Extra
+	var hints []DiagnosticHint
+
+	// ── Permanent data loss (retried_failed = max retries exhausted) ──────────
+	lostPM := ex["output_retried_failed_pm"]
+	if lostPM > 0 {
+		v := lostPM
+		hints = append(hints, DiagnosticHint{
+			Key:   "fb_data_loss",
+			Level: "critical",
+			Title: fmt.Sprintf("%.0f records/min lost", lostPM),
+			Detail: fmt.Sprintf(
+				"Fluent Bit is permanently losing %.0f log records per minute. "+
+					"These are records that failed to reach an output plugin and exhausted "+
+					"all retry attempts — they are gone. "+
+					"Check your output plugin configuration: is the destination reachable? "+
+					"Is the endpoint returning errors? You can also check `output_errors_pm` "+
+					"and `output_retries_pm` to understand the failure pattern. "+
+					"Consider enabling the filesystem buffer (`storage.type filesystem`) "+
+					"so records survive Fluent Bit restarts.",
+				lostPM,
+			),
+			Value: &v,
+		})
+	}
+
+	// ── Output errors (failed sends, before retries exhaust) ──────────────────
+	errorsPM := ex["output_errors_pm"]
+	if errorsPM > 0.5 {
+		v := errorsPM
+		hints = append(hints, DiagnosticHint{
+			Key:   "fb_output_errors",
+			Level: "warning",
+			Title: fmt.Sprintf("%.0f output errors/min", errorsPM),
+			Detail: fmt.Sprintf(
+				"Fluent Bit is encountering %.0f output errors per minute. "+
+					"Errors trigger retries — if retries keep failing they become permanent loss. "+
+					"Common causes: destination unreachable, authentication failure, "+
+					"TLS certificate issues, or the backend is rate-limiting. "+
+					"Check Fluent Bit logs: `kubectl logs <fluent-bit-pod>` or `journalctl -u td-agent-bit`.",
+				errorsPM,
+			),
+			Value: &v,
+		})
+	}
+
+	// ── Retry storm (backpressure building up) ────────────────────────────────
+	retriesPM := ex["output_retries_pm"]
+	if retriesPM > 5 && lostPM == 0 {
+		// Only show if no data loss yet — if there IS loss, the critical hint covers it.
+		v := retriesPM
+		hints = append(hints, DiagnosticHint{
+			Key:   "fb_retries",
+			Level: "info",
+			Title: fmt.Sprintf("%.0f retries/min", retriesPM),
+			Detail: fmt.Sprintf(
+				"Fluent Bit is retrying %.0f times per minute. No data is lost yet, "+
+					"but sustained retries indicate your output destination is struggling. "+
+					"If retries keep increasing, records will eventually exhaust the retry limit "+
+					"and be permanently dropped. Monitor `output_retried_failed_pm` closely.",
+				retriesPM,
+			),
+			Value: &v,
+		})
+	}
+
+	// ── Filter drops ──────────────────────────────────────────────────────────
+	filterDropPM := ex["filter_drop_records_pm"]
+	if filterDropPM > 0 {
+		v := filterDropPM
+		hints = append(hints, DiagnosticHint{
+			Key:   "fb_filter_drops",
+			Level: "info",
+			Title: fmt.Sprintf("%.0f records/min filtered", filterDropPM),
+			Detail: fmt.Sprintf(
+				"%.0f log records per minute are being intentionally dropped by filter plugins "+
+					"(grep, lua, etc.). This is normal if you have filtering rules configured. "+
+					"If this number is higher than expected, check your filter configurations "+
+					"to make sure you're not accidentally dropping logs you need.",
+				filterDropPM,
+			),
+			Value: &v,
+		})
 	}
 
 	return hints
