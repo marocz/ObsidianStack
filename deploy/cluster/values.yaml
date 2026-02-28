@@ -11,10 +11,6 @@
 #     --values deploy/cluster/values.yaml
 # ──────────────────────────────────────────────────────────────────────────────
 
-namespace:
-  create: false   # namespace already exists in cluster
-  name: obsidianstack
-
 # ── Agent ─────────────────────────────────────────────────────────────────────
 
 agent:

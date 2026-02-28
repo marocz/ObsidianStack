@@ -19,8 +19,11 @@ commonLabels: {}
 # ── Namespace ─────────────────────────────────────────────────────────────────
 
 namespace:
-  # -- Create the namespace. Set to false if it already exists.
-  create: true
+  # -- Set to true only for GitOps workflows (ArgoCD/Flux) where --create-namespace
+  # is not available. For standard Helm installs, use --create-namespace instead:
+  #   helm install obsidianstack ./charts/obsidianstack \
+  #     --namespace obsidianstack --create-namespace
+  create: false
   name: obsidianstack
 
 # ── Agent ─────────────────────────────────────────────────────────────────────
