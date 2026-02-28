@@ -36,6 +36,14 @@ config/server.yaml
 # Cluster deployment session notes — may contain passwords / tokens
 deploy/cluster/session-notes.md
 
+# Local override files — never commit these
+# Use these filenames for local testing; they are git-ignored by design:
+#   deploy/cluster/values.local.yaml  (local cluster overrides)
+#   docker-compose.override.yml       (local compose overrides)
+#   config/agent.local.yaml           (local agent config)
+*.local.yaml
+docker-compose.override.yml
+
 # Node / UI
 ui/node_modules/
 ui/dist/

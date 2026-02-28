@@ -16,8 +16,8 @@
 agent:
   image:
     repository: marocz/obsidianstack-agent
-    tag: "latest"
-    pullPolicy: Always
+    tag: "v0.1.0"
+    pullPolicy: IfNotPresent
 
   replicaCount: 1
 
@@ -63,8 +63,8 @@ agent:
 server:
   image:
     repository: marocz/obsidianstack-server
-    tag: "latest"
-    pullPolicy: Always
+    tag: "v0.1.0"
+    pullPolicy: IfNotPresent
 
   replicaCount: 1
 
@@ -121,8 +121,8 @@ ui:
 
   image:
     repository: marocz/obsidianstack-ui
-    tag: "latest"
-    pullPolicy: Always
+    tag: "v0.1.0"
+    pullPolicy: IfNotPresent
 
   replicaCount: 1
 

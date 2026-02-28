@@ -271,6 +271,90 @@ server:
 
 ---
 
+## Contributing / Release workflow
+
+All changes go through feature branches — direct pushes to `main` are blocked.
+
+### Making a change
+
+```bash
+git checkout -b feature/my-change
+# ... make changes ...
+make test                              # all tests must pass
+git push origin feature/my-change
+gh pr create                           # open PR, get review, merge
+```
+
+### Building and testing images locally
+
+Before pushing images to Docker Hub, build and smoke-test locally:
+
+```bash
+# Build all three images (single-arch, your machine's native arch)
+make docker-build VERSION=v0.1.1 DOCKER_USER=marocz
+
+# Quick smoke test with docker-compose
+docker compose up
+
+# Or test against your Kubernetes cluster:
+#   Update deploy/cluster/values.yaml image tags to v0.1.1, then:
+make helm-upgrade-cluster
+make rollout-restart
+kubectl get pods -n obsidianstack
+```
+
+### Pushing images to Docker Hub
+
+Once you've confirmed the images work:
+
+```bash
+# Login once if needed
+docker login
+
+# Push multi-arch images (amd64 + arm64) to Docker Hub
+make docker-push VERSION=v0.1.1 DOCKER_USER=marocz
+```
+
+### Releasing a new version
+
+After the PR is merged to `main`, tag the release. GitHub Actions builds
+the official multi-arch images and creates a GitHub Release automatically:
+
+```bash
+git checkout main && git pull
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+The CI workflow will publish:
+- `marocz/obsidianstack-agent:v0.1.1`
+- `marocz/obsidianstack-server:v0.1.1`
+- `marocz/obsidianstack-ui:v0.1.1`
+
+Then update the cluster to the new tag:
+
+```bash
+# Edit deploy/cluster/values.yaml — set all three image tags to v0.1.1
+helm upgrade --install obsidianstack charts/obsidianstack \
+  --namespace obsidianstack \
+  --create-namespace \
+  --values deploy/cluster/values.yaml
+```
+
+### Useful Makefile targets
+
+```
+make test                    # Run all Go tests with race detector
+make docker-build            # Build all images locally (single-arch)
+make docker-push             # Push multi-arch images to Docker Hub
+make release                 # Run tests + build + print release checklist
+make helm-upgrade-cluster    # Deploy to k8s using deploy/cluster/values.yaml
+make rollout-restart         # Restart all pods to pick up new images
+make helm-template-cluster   # Dry-run render with cluster values
+```
+
+---
+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).
