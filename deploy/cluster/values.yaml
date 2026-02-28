@@ -1,6 +1,8 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # ObsidianStack — cluster-specific Helm values
+
 # Target cluster:  Kubernetes
+
 #
 # Usage:
 #   helm upgrade --install obsidianstack charts/obsidianstack \
