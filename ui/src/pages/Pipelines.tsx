@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore'
 import { usePipelines } from '../hooks/usePipelines'
 import type { PipelineResponse, SignalResponse } from '../api/types'
 import { DiagnosticPanel, DiagDrawer } from '../components/DiagnosticPanel'
+import { OtelFlowCard } from '../components/OtelFlowCard'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -214,14 +215,19 @@ function PipelineRow({ p, onDiagnose }: PipelineRowProps) {
                 </div>
               </div>
 
-              {/* Signals breakdown */}
-              {p.signals && p.signals.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] uppercase tracking-wide text-obs-muted">Signal breakdown</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {p.signals.map((s) => <SignalChip key={s.type} sig={s} />)}
+              {/* OTel Collector: rich flow card instead of generic signal chips */}
+              {p.source_type === 'otelcol' ? (
+                <OtelFlowCard pipeline={p} />
+              ) : (
+                /* Generic signal breakdown for prometheus / loki / etc. */
+                p.signals && p.signals.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] uppercase tracking-wide text-obs-muted">Signal breakdown</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {p.signals.map((s) => <SignalChip key={s.type} sig={s} />)}
+                    </div>
                   </div>
-                </div>
+                )
               )}
 
               {/* Error */}

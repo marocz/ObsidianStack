@@ -45,6 +45,9 @@ export interface PipelineResponse {
   error_message?: string
   signals: SignalResponse[]
   diagnostics: DiagnosticHint[]
+  /** Component-specific metrics. For otelcol: queue_size, queue_capacity,
+   *  and _pm rates for exporter_sent_*, receiver_refused_*, exporter_send_failed_* */
+  extra?: Record<string, number>
   last_seen: string
 }
 

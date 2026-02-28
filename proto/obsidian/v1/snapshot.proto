@@ -25,6 +25,10 @@ message PipelineSnapshot {
   repeated SignalStats signals = 16; // per-signal-type breakdown
   repeated CertStatus  certs   = 17; // TLS cert status per endpoint
   string error_message       = 18; // non-empty if the scrape itself failed
+  // extra holds component-specific numeric metrics that don't fit the generic
+  // fields above. For otelcol: queue_size, queue_capacity, exporter_sent_*,
+  // receiver_refused_*, processor_dropped_*.
+  map<string, double> extra  = 19;
 }
 
 // SignalStats holds per-signal-type (metrics/logs/traces) throughput and drop data.

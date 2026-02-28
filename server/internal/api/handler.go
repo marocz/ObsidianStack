@@ -275,6 +275,7 @@ func toPipelineResponse(e *store.Entry) PipelineResponse {
 		ErrorMessage:     snap.ErrorMessage,
 		Signals:          sigs,
 		Diagnostics:      computeDiagnostics(snap),
+		Extra:            snap.Extra,
 		LastSeen:         e.UpdatedAt.UTC().Format(time.RFC3339),
 	}
 }
