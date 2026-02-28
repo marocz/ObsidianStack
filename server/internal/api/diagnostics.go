@@ -208,6 +208,125 @@ func computeDiagnostics(snap *pb.PipelineSnapshot) []DiagnosticHint {
 	return hints
 }
 
+// otelcolHints generates OTel-Collector-specific diagnostic hints using the
+// Extra map (queue gauges + per-minute counter rates populated by the agent).
+func otelcolHints(snap *pb.PipelineSnapshot) []DiagnosticHint {
+	ex := snap.Extra // may be nil for first scrape
+	var hints []DiagnosticHint
+
+	// ── Queue backpressure ────────────────────────────────────────────────────
+	qSize := ex["exporter_queue_size"]
+	qCap := ex["exporter_queue_capacity"]
+	if qCap > 0 {
+		fillPct := qSize / qCap * 100
+		v := fillPct
+		switch {
+		case fillPct >= 90:
+			hints = append(hints, DiagnosticHint{
+				Key:   "otel_queue_critical",
+				Level: "critical",
+				Title: fmt.Sprintf("Queue %.0f%% full", fillPct),
+				Detail: fmt.Sprintf(
+					"The OTel Collector exporter queue is %.0f%% full (%.0f / %.0f slots). "+
+						"This means your downstream backends (Prometheus remote write, Loki) "+
+						"cannot keep up with the ingest rate. Data will start dropping imminently. "+
+						"Immediate actions: scale up the backend, increase queue_size in your "+
+						"exporter config (sending_queue.queue_size), or add more exporter workers "+
+						"(sending_queue.num_consumers). Check otelcol_exporter_send_failed_* for failures.",
+					fillPct, qSize, qCap,
+				),
+				Value: &v,
+			})
+		case fillPct >= 70:
+			hints = append(hints, DiagnosticHint{
+				Key:   "otel_queue_warning",
+				Level: "warning",
+				Title: fmt.Sprintf("Queue %.0f%% full", fillPct),
+				Detail: fmt.Sprintf(
+					"The OTel Collector exporter queue is %.0f%% full (%.0f / %.0f slots). "+
+						"Backpressure is building — if ingest continues at this rate without "+
+						"the backend catching up, data will start dropping. "+
+						"Consider scaling your backend or increasing the queue size before it reaches 90%%.",
+					fillPct, qSize, qCap,
+				),
+				Value: &v,
+			})
+		case fillPct >= 30:
+			hints = append(hints, DiagnosticHint{
+				Key:    "otel_queue_ok",
+				Level:  "info",
+				Title:  fmt.Sprintf("Queue %.0f%% used", fillPct),
+				Detail: fmt.Sprintf("The exporter queue is %.0f%% full (%.0f / %.0f). Healthy headroom.", fillPct, qSize, qCap),
+				Value:  &v,
+			})
+		}
+	}
+
+	// ── Receiver refusals (items rejected before entering the pipeline) ───────
+	var totalRefusedPM float64
+	for _, suffix := range []string{"spans", "metric_points", "log_records"} {
+		totalRefusedPM += ex["receiver_refused_"+suffix+"_pm"]
+	}
+	if totalRefusedPM > 0.5 {
+		v := totalRefusedPM
+		hints = append(hints, DiagnosticHint{
+			Key:   "otel_receiver_refused",
+			Level: "warning",
+			Title: fmt.Sprintf("%.0f items/min refused", totalRefusedPM),
+			Detail: fmt.Sprintf(
+				"The OTel Collector is refusing %.0f items per minute at the receiver stage — "+
+					"these are items that never even entered the pipeline. "+
+					"This usually means the collector is overwhelmed or a memory_limiter processor "+
+					"is rejecting data to protect itself. "+
+					"Check otelcol_receiver_refused_* metrics and consider increasing memory limits "+
+					"or reducing the upstream send rate.",
+				totalRefusedPM,
+			),
+			Value: &v,
+		})
+	}
+
+	// ── Export failures ───────────────────────────────────────────────────────
+	var totalFailedPM float64
+	for _, suffix := range []string{"spans", "metric_points", "log_records"} {
+		totalFailedPM += ex["exporter_send_failed_"+suffix+"_pm"]
+	}
+	if totalFailedPM > 0.5 {
+		v := totalFailedPM
+		hints = append(hints, DiagnosticHint{
+			Key:   "otel_export_failures",
+			Level: "critical",
+			Title: fmt.Sprintf("%.0f exports/min failing", totalFailedPM),
+			Detail: fmt.Sprintf(
+				"%.0f items per minute are failing to export to their destinations. "+
+					"This is distinct from queue pressure — these are items the collector "+
+					"tried to send but the backend rejected or dropped the connection. "+
+					"Check the logs for exporter errors: `kubectl logs -n monitoring deploy/otel-collector`. "+
+					"Common causes: backend authentication failure, TLS errors, backend overload, "+
+					"or network connectivity issues between the collector and your storage backends.",
+				totalFailedPM,
+			),
+			Value: &v,
+		})
+	}
+
+	// ── Uptime context for otelcol ────────────────────────────────────────────
+	if snap.UptimePct < 100 {
+		hints = append(hints, DiagnosticHint{
+			Key:   "otel_restart_tip",
+			Level: "info",
+			Title: "Check collector logs",
+			Detail: "When the OTel Collector restarts it loses any data buffered in memory " +
+				"(unless you have persistent queue enabled). " +
+				"Run `kubectl logs -n monitoring deploy/otel-collector --previous` to see why it restarted. " +
+				"Common causes: OOM (increase memory limit or tighten memory_limiter), " +
+				"config errors, or upstream connectivity issues.",
+		})
+	}
+
+	return hints
+}
+
 // sourceTypeHints returns source-type-specific diagnostic hints.
 func sourceTypeHints(snap *pb.PipelineSnapshot) []DiagnosticHint {
 	var hints []DiagnosticHint
@@ -254,19 +373,7 @@ func sourceTypeHints(snap *pb.PipelineSnapshot) []DiagnosticHint {
 		}
 
 	case "otelcol":
-		if snap.DropPct > 0 {
-			hints = append(hints, DiagnosticHint{
-				Key:   "otel_exporter_tip",
-				Level: "info",
-				Title: "Check OTel exporters",
-				Detail: "OpenTelemetry Collector drops happen at two points: " +
-					"(1) the processor stage (check otelcol_processor_dropped_*) and " +
-					"(2) the exporter stage (check otelcol_exporter_send_failed_*). " +
-					"Also look at otelcol_exporter_queue_size vs queue_capacity — " +
-					"if the queue is filling up, your backend can't keep up with the ingest rate. " +
-					"Consider increasing the queue size or adding retry with backoff in your exporter config.",
-			})
-		}
+		hints = append(hints, otelcolHints(snap)...)
 	}
 
 	return hints

@@ -2,6 +2,7 @@ package compute
 
 import (
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,7 +28,8 @@ type Result struct {
 	StrengthScore float64
 	UptimePct     float64
 	Signals       []SignalResult
-	ErrorMessage  string // non-empty when the scrape failed; forwarded to the server
+	ErrorMessage  string            // non-empty when the scrape failed; forwarded to the server
+	Extra         map[string]float64 // component-specific metrics (e.g. queue_size, exporter_sent_*)
 }
 
 // SignalResult is the per-signal-type breakdown included in Result.Signals.
@@ -146,6 +148,24 @@ func (e *Engine) Process(res *scraper.ScrapeResult, now time.Time) *Result {
 	})
 	out.State = scoreOut.State
 	out.StrengthScore = scoreOut.Score
+
+	// Compute per-minute rates for Extra counter fields; copy gauges as-is.
+	// Convention: fields ending in "_size" or "_capacity" are gauges (current
+	// value). Everything else is a monotonic counter — compute delta/elapsed.
+	if len(res.Extra) > 0 {
+		out.Extra = make(map[string]float64, len(res.Extra)*2)
+		for k, v := range res.Extra {
+			if strings.HasSuffix(k, "_size") || strings.HasSuffix(k, "_capacity") {
+				out.Extra[k] = v
+			} else {
+				var prev float64
+				if st.prev != nil {
+					prev = st.prev.Extra[k]
+				}
+				out.Extra[k+"_pm"] = deltaOf(v, prev) / elapsed
+			}
+		}
+	}
 
 	st.updateBaseline(res, now)
 	return out

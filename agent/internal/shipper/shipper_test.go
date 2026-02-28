@@ -112,7 +112,7 @@ func TestShipper_DeliversSnapshot(t *testing.T) {
 
 	go s.Run(ctx)
 
-	s.Ship(makeComputeResult("otel-1"))
+	s.Ship(makeComputeResult("otel-1"), nil)
 
 	// Poll until the server receives it or the context expires.
 	deadline := time.Now().Add(2 * time.Second)
@@ -148,7 +148,7 @@ func TestShipper_MultipleSnapshots(t *testing.T) {
 	go s.Run(ctx)
 
 	for i := 0; i < 5; i++ {
-		s.Ship(makeComputeResult("src"))
+		s.Ship(makeComputeResult("src"), nil)
 	}
 
 	deadline := time.Now().Add(2 * time.Second)
@@ -172,7 +172,7 @@ func TestShipper_BufferEvictsOldest(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		res := makeComputeResult("src")
 		res.StrengthScore = float64(i) // use score to identify order
-		s.Ship(res)
+		s.Ship(res, nil)
 	}
 
 	// Drain the buffer manually and check which remain.
@@ -207,7 +207,7 @@ func TestShipper_ConvertToProto(t *testing.T) {
 		{Type: "traces", ReceivedPM: 100, DroppedPM: 3, DropPct: 2.9},
 	}
 
-	snap := toProto(res)
+	snap := toProto(res, nil)
 
 	if snap.SourceId != "prom-test" {
 		t.Errorf("SourceId = %q, want %q", snap.SourceId, "prom-test")

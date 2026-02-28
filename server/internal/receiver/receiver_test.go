@@ -13,7 +13,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	pb "github.com/obsidianstack/obsidianstack/gen/obsidian/v1"
+	"github.com/obsidianstack/obsidianstack/server/internal/alerts"
 	"github.com/obsidianstack/obsidianstack/server/internal/auth"
+	svrconfig "github.com/obsidianstack/obsidianstack/server/internal/config"
 	"github.com/obsidianstack/obsidianstack/server/internal/receiver"
 	"github.com/obsidianstack/obsidianstack/server/internal/store"
 )
@@ -24,7 +26,7 @@ func startServer(t *testing.T, interceptor grpc.UnaryServerInterceptor) (pb.Snap
 	t.Helper()
 
 	st := store.New(5 * time.Minute)
-	rec := receiver.New(st)
+	rec := receiver.New(st, alerts.New(svrconfig.AlertsConfig{}))
 
 	srv := grpc.NewServer(grpc.UnaryInterceptor(interceptor))
 	pb.RegisterSnapshotServiceServer(srv, rec)
