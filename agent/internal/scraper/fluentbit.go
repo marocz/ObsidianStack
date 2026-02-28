@@ -33,8 +33,7 @@ type fbOutput struct {
 	ProcBytes     uint64 `json:"proc_bytes"`
 	Errors        uint64 `json:"errors"`
 	Retries       uint64 `json:"retries"`
-	RetriedFailed uint64 `json:"retried_failed"` // Fluent Bit 2.x
-	RetriesFailed uint64 `json:"retries_failed"` // Fluent Bit 3.x
+	RetriedFailed uint64 `json:"retried_failed"`
 }
 
 type fluentbitScraper struct {
@@ -106,7 +105,7 @@ func (s *fluentbitScraper) Scrape(ctx context.Context) (*ScrapeResult, error) {
 		outBytes += float64(p.ProcBytes)
 		outErrors += float64(p.Errors)
 		outRetries += float64(p.Retries)
-		outRetriedFailed += float64(p.RetriedFailed + p.RetriesFailed)
+		outRetriedFailed += float64(p.RetriedFailed)
 	}
 
 	// Received = records that entered via input plugins.
