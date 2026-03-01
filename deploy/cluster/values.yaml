@@ -16,7 +16,7 @@
 agent:
   image:
     repository: marocz/obsidianstack-agent
-    tag: "v0.1.0"
+    tag: "v0.1.3"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
@@ -63,7 +63,7 @@ agent:
 server:
   image:
     repository: marocz/obsidianstack-server
-    tag: "v0.1.0"
+    tag: "v0.1.3"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
@@ -121,7 +121,7 @@ ui:
 
   image:
     repository: marocz/obsidianstack-ui
-    tag: "v0.1.0"
+    tag: "v0.1.3"
     pullPolicy: IfNotPresent
 
   replicaCount: 1
