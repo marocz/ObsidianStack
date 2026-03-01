@@ -267,7 +267,8 @@ server:
 | 7 | Alerting — rule engine + Slack/Teams webhooks | ✅ Complete |
 | 7b | OTel Collector flow visualisation (queue, signals, extra metrics) | ✅ Complete |
 | 7c | Fluent Bit scraper support | ✅ Complete |
-| 8 | Historical storage + trend charts | 🔲 Planned |
+| 7d | Multi-arch Docker builds + CI branch pipeline | ✅ Complete |
+| 8 | Historical storage + trend charts | 🚧 In progress |
 
 ---
 
