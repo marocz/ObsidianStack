@@ -1,5 +1,9 @@
-# Builds and pushes multi-arch Docker images to Docker Hub on every git tag
-# (e.g.  git tag v0.1.0 && git push origin v0.1.0).
+# Builds and pushes multi-arch Docker images to Docker Hub.
+#
+# Triggers:
+#   push v*.*.*  tag  → semver tags (v0.1.1, v0.1, v0) + :latest
+#   push feature/* or main branch → sha-<short> tag (dev builds for testing)
+#   workflow_dispatch    → explicit tag input, or sha-<short> if left blank
 #
 # Required repository secrets:
 #   DOCKERHUB_USERNAME  — your Docker Hub username
@@ -11,11 +15,14 @@ name: Publish Docker images
 on:
   push:
     tags:
-      - "v*.*.*"       # triggers on v0.1.0, v1.2.3, etc.
-  workflow_dispatch:   # allows manual trigger from the Actions tab
+      - "v*.*.*"          # official release: v0.1.1, v1.2.3, etc.
+    branches:
+      - "feature/*"       # dev builds on feature branches
+      - "main"            # dev build after PR merge (before tagging)
+  workflow_dispatch:      # manual trigger from Actions tab
     inputs:
       tag:
-        description: "Image tag to use (e.g. v0.1.0). Leave empty to use git SHA."
+        description: "Image tag to use (e.g. v0.1.1). Leave empty to use git SHA."
         required: false
         default: ""
 
@@ -67,12 +74,16 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USERNAME }}/obsidianstack-${{ matrix.image_suffix }}
           tags: |
+            # semver tags — only on v*.*.* git tag push
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            # :latest — only on v*.*.* git tag push (not on every branch merge)
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            # explicit tag from workflow_dispatch input
             type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event.inputs.tag != '' }}
-            type=sha,prefix=sha-,format=short,enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag == '' }}
+            # sha-<short> tag for branch builds and untagged manual dispatch
+            type=sha,prefix=sha-,format=short,enable=${{ (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag == '') }}
 
       - name: Build and push ${{ matrix.component }}
         uses: docker/build-push-action@v5
@@ -85,6 +96,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Only skip cache on manual dispatch (branch builds always use cache)
           no-cache: ${{ github.event_name == 'workflow_dispatch' }}
 
   release:
