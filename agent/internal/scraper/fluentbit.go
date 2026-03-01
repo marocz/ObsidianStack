@@ -108,9 +108,11 @@ func (s *fluentbitScraper) Scrape(ctx context.Context) (*ScrapeResult, error) {
 		outRetriedFailed += float64(p.RetriedFailed)
 	}
 
-	// Received = records that entered via input plugins.
-	// Dropped  = records permanently lost (max retries exhausted + filter drops).
-	res.Received["logs"] = inputRecords
+	// The compute engine uses: drop_pct = dropped / (received + dropped)
+	// so Received must be records that successfully exited (output_proc_records),
+	// not records that entered (input_records). Using input here would halve the
+	// computed drop_pct when 100% of records are filtered/lost.
+	res.Received["logs"] = outProc
 	res.Dropped["logs"] = outRetriedFailed + filterDropped
 
 	res.Extra["input_records"] = inputRecords

@@ -1,5 +1,7 @@
 # Stage 1 — Build the React app
-FROM node:20-alpine AS builder
+# Use the build host's native platform so Node never runs under QEMU.
+# The output is platform-independent JavaScript, so this is safe.
+FROM --platform=$BUILDPLATFORM node:20-alpine AS builder
 WORKDIR /app
 
 # Cache node_modules separately from source

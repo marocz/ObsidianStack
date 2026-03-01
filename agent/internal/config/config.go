@@ -266,7 +266,7 @@ func validate(cfg *Config) error {
 			return fmt.Errorf("sources[%d] %q: endpoint is required", i, src.ID)
 		}
 		switch src.Type {
-		case "otelcol", "prometheus", "loki", "jaeger", "http":
+		case "otelcol", "prometheus", "loki", "fluentbit", "jaeger", "http":
 		default:
 			return fmt.Errorf("sources[%d] %q: unknown type %q", i, src.ID, src.Type)
 		}
