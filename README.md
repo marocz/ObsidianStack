@@ -274,7 +274,7 @@ server:
 | 7b | OTel Collector flow visualisation (queue, signals, extra metrics) | ✅ Complete |
 | 7c | Fluent Bit scraper support | ✅ Complete |
 | 7d | Multi-arch Docker builds + CI branch pipeline | ✅ Complete |
-| 8 | Historical storage + trend charts | 🚧 Next — see [ROADMAP.md](ROADMAP.md) |
+| 8 | Historical storage + trend charts | 🚧 In progress |
 
 ---
 

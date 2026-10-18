@@ -44,7 +44,7 @@ type fluentbitScraper struct {
 // Scrape fetches Fluent Bit's /api/v1/metrics JSON endpoint and extracts
 // log pipeline health data.
 //
-// Received = records that successfully left all output plugins (proc_records).
+// Received = total records ingested across all input plugins.
 // Dropped  = records permanently lost: output retried_failed (max retries
 //
 //	exhausted) + records dropped by filter plugins.

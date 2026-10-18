@@ -57,9 +57,9 @@ func TestFluentBitScraper_Received(t *testing.T) {
 	if res.Err != nil {
 		t.Fatalf("res.Err: %v", res.Err)
 	}
-	// output proc_records: 10000 + 1700 = 11700 (not input records — see Scrape)
-	if got := res.Received["logs"]; got != 11700 {
-		t.Errorf("Received[logs] = %.0f, want 11700", got)
+	// input: 10000 + 2000 = 12000
+	if got := res.Received["logs"]; got != 12000 {
+		t.Errorf("Received[logs] = %.0f, want 12000", got)
 	}
 }
 
