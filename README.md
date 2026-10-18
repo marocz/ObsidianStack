@@ -5,7 +5,13 @@
 Know instantly whether your metrics, logs, and traces are flowing — or silently dropping. ObsidianStack scrapes your pipeline components (OTel Collector, Prometheus, Loki, Fluent Bit), computes a **Pipeline Strength Score**, and surfaces drop rates, queue pressure, export failures, and recovery rates in a live dashboard.
 
 [![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go)](https://golang.org)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+**Who it's for:** platform / SRE engineers who run telemetry pipelines (OTel Collector, Prometheus remote write, Loki, Fluent Bit) on Kubernetes or VMs and want to know when data is being lost *before* a dashboard goes blank.
+
+**Built with:** Go (agent + server, gRPC/protobuf via buf), React + Vite + Tailwind (UI), Helm and systemd for deployment.
+
+**Plans:** see [ROADMAP.md](ROADMAP.md) and the open issues.
 
 ---
 
@@ -268,7 +274,7 @@ server:
 | 7b | OTel Collector flow visualisation (queue, signals, extra metrics) | ✅ Complete |
 | 7c | Fluent Bit scraper support | ✅ Complete |
 | 7d | Multi-arch Docker builds + CI branch pipeline | ✅ Complete |
-| 8 | Historical storage + trend charts | 🚧 In progress |
+| 8 | Historical storage + trend charts | 🚧 Next — see [ROADMAP.md](ROADMAP.md) |
 
 ---
 
@@ -358,4 +364,4 @@ make helm-template-cluster   # Dry-run render with cluster values
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
